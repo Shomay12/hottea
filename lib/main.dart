@@ -362,6 +362,8 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> {
       _urlController.text = activeTab.currentUrl.toString();
     }
 
+    final isMobile = MediaQuery.sizeOf(context).width < 600;
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color(0xFF16181D),
@@ -369,40 +371,44 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> {
         titleSpacing: 8,
         title: Row(
           children: [
-            // Brand Chip
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: const Color(0xFFD48B47).withAlpha(40),
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: const Color(0xFFD48B47).withAlpha(100)),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.coffee, size: 16, color: Color(0xFFD48B47)),
-                  SizedBox(width: 6),
-                  Text(
-                    'HotTea',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: Color(0xFFD48B47),
+            // Brand Chip (Desktop / Tablet)
+            if (!isMobile) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD48B47).withAlpha(40),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: const Color(0xFFD48B47).withAlpha(100)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.coffee, size: 16, color: Color(0xFFD48B47)),
+                    SizedBox(width: 6),
+                    Text(
+                      'HotTea',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: Color(0xFFD48B47),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
+              const SizedBox(width: 8),
+            ],
 
             // Navigation Controls: Back, Forward, Reload
             IconButton(
               icon: const Icon(Icons.arrow_back, size: 18),
               tooltip: 'Back',
+              visualDensity: VisualDensity.compact,
               onPressed: activeTab.canGoBack ? () => activeTab.goBack() : null,
             ),
             IconButton(
               icon: const Icon(Icons.arrow_forward, size: 18),
               tooltip: 'Forward',
+              visualDensity: VisualDensity.compact,
               onPressed: activeTab.canGoForward ? () => activeTab.goForward() : null,
             ),
             IconButton(
@@ -414,6 +420,7 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> {
                     )
                   : const Icon(Icons.refresh, size: 18),
               tooltip: 'Reload',
+              visualDensity: VisualDensity.compact,
               onPressed: () => activeTab.reload(),
             ),
             const SizedBox(width: 4),

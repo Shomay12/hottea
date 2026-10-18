@@ -1,4 +1,4 @@
-name: Deploy HotTea Website to GitHub Pages
+name: Deploy HotTea Website
 
 on:
   push:
@@ -20,11 +20,11 @@ concurrency:
 
 jobs:
   deploy:
+    runs-on: ubuntu-latest
+
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-
-    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
@@ -33,18 +33,14 @@ jobs:
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
 
-      - name: Verify website entry point
-        run: |
-          test -f hottea-website/index.html || {
-            echo "ERROR: hottea-website/index.html was not found"
-            exit 1
-          }
+      - name: Verify website
+        run: test -f hottea-website/index.html
 
-      - name: Upload website files
+      - name: Upload website
         uses: actions/upload-pages-artifact@v3
         with:
           path: hottea-website
 
-      - name: Deploy to GitHub Pages
+      - name: Deploy website
         id: deployment
         uses: actions/deploy-pages@v4

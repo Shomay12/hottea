@@ -1,7 +1,7 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'core/config/app_privacy_policy.dart';
-import 'features/browser/domain/browser_engine.dart';
+import 'features/browser/data/browser_engine_factory.dart';
+import 'features/browser/domain/browser_tab.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -32,57 +32,79 @@ class HotTeaApp extends StatelessWidget {
 }
 
 class HotTeaWorkspaceScreen extends StatefulWidget {
-  const HotTeaWorkspaceScreen({super.key});
+  final bool forceMockBrowser;
+
+  const HotTeaWorkspaceScreen({
+    super.key,
+    this.forceMockBrowser = false,
+  });
 
   @override
   State<HotTeaWorkspaceScreen> createState() => _HotTeaWorkspaceScreenState();
 }
 
 class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> {
-  late final BrowserEngine _browserEngine;
-  final TextEditingController _urlController = TextEditingController(
-    text: 'https://docs.flutter.dev',
-  );
+  final List<BrowserTab> _tabs = [];
+  int _activeTabIndex = 0;
+
+  final TextEditingController _urlController = TextEditingController();
   final TextEditingController _noteController = TextEditingController(
     text: '# Research Notes\n\n- HotTea local-first session initialized.\n- Zero external telemetry reported.\n- All research stored locally.',
   );
 
   bool _isRightPaneVisible = true;
-  String _activeTab = 'notes'; // 'notes' or 'ai'
+  String _activeRightTab = 'notes'; // 'notes' or 'ai'
 
   @override
   void initState() {
     super.initState();
-    _browserEngine = MockBrowserEngine(
-      capabilities: _detectPlatformCapabilities(),
-    );
-    _browserEngine.initialize();
+    _createNewTab(Uri.parse('https://docs.flutter.dev'));
   }
 
-  BrowserPlatformCapabilities _detectPlatformCapabilities() {
-    final String platformName;
-    if (kIsWeb) {
-      platformName = 'Web Preview';
-    } else {
-      platformName = defaultTargetPlatform.name;
-    }
-
-    return BrowserPlatformCapabilities(
-      platformName: platformName,
-      renderMode: BrowserRenderMode.inlineWidget,
-      supportsDomExtraction: true,
-      supportsScriptInjection: true,
-      supportsCookieIsolation: true,
-      supportsInlineDevTools: false,
-      underlyingEngineName: 'HotTea Modular Engine Adapter',
-      license: 'Apache-2.0',
-      notes: 'Initial abstraction layer decoupling UI from platform engine.',
+  void _createNewTab([Uri? initialUrl]) {
+    final newUrl = initialUrl ?? Uri.parse('https://docs.flutter.dev');
+    final engine = BrowserEngineFactory.createEngine(
+      initialUrl: newUrl,
+      forceMock: widget.forceMockBrowser,
     );
+
+    final tab = BrowserTab(
+      id: 'tab_${DateTime.now().millisecondsSinceEpoch}_${_tabs.length}',
+      engine: engine,
+      initialUrl: newUrl,
+      onStateChanged: () {
+        if (mounted) setState(() {});
+      },
+    );
+
+    setState(() {
+      _tabs.add(tab);
+      _activeTabIndex = _tabs.length - 1;
+      _urlController.text = newUrl.toString();
+    });
   }
+
+  void _closeTab(int index) {
+    if (_tabs.length <= 1) return; // Keep at least one tab open
+
+    final tabToClose = _tabs[index];
+    setState(() {
+      _tabs.removeAt(index);
+      if (_activeTabIndex >= _tabs.length) {
+        _activeTabIndex = _tabs.length - 1;
+      }
+      _urlController.text = _tabs[_activeTabIndex].currentUrl?.toString() ?? '';
+    });
+    tabToClose.dispose();
+  }
+
+  BrowserTab get _activeTab => _tabs[_activeTabIndex];
 
   @override
   void dispose() {
-    _browserEngine.dispose();
+    for (final tab in _tabs) {
+      tab.dispose();
+    }
     _urlController.dispose();
     _noteController.dispose();
     super.dispose();
@@ -91,11 +113,28 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> {
   void _onNavigate() {
     final text = _urlController.text.trim();
     if (text.isNotEmpty) {
-      final uri = Uri.tryParse(text.startsWith('http') ? text : 'https://$text');
+      final uri = Uri.tryParse(text.startsWith('http://') || text.startsWith('https://') || text.startsWith('about:')
+          ? text
+          : 'https://$text');
       if (uri != null) {
-        _browserEngine.loadUrl(uri);
+        _activeTab.loadUrl(uri);
       }
     }
+  }
+
+  void _clipActivePageToNotes() {
+    final url = _activeTab.currentUrl?.toString() ?? 'unknown';
+    final title = _activeTab.currentTitle.isEmpty ? url : _activeTab.currentTitle;
+    final citation = '\n\n### Clipped: $title\n- URL: $url\n- Timestamp: ${DateTime.now().toIso8601String()}\n';
+    setState(() {
+      _noteController.text += citation;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Clipped page reference to local research notes.'),
+        duration: Duration(seconds: 2),
+      ),
+    );
   }
 
   void _showPrivacyDisclosureDialog() {
@@ -136,17 +175,24 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final capabilities = _browserEngine.capabilities;
+    final activeTab = _activeTab;
+    final capabilities = activeTab.engine.capabilities;
+
+    // Keep urlController text synchronized if not actively editing
+    if (activeTab.currentUrl != null && _urlController.text != activeTab.currentUrl.toString()) {
+      _urlController.text = activeTab.currentUrl.toString();
+    }
 
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color(0xFF16181D),
         elevation: 0,
-        titleSpacing: 12,
+        titleSpacing: 8,
         title: Row(
           children: [
+            // Brand Chip
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
                 color: const Color(0xFFD48B47).withAlpha(40),
                 borderRadius: BorderRadius.circular(6),
@@ -154,24 +200,49 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> {
               ),
               child: const Row(
                 children: [
-                  Icon(Icons.coffee, size: 18, color: Color(0xFFD48B47)),
+                  Icon(Icons.coffee, size: 16, color: Color(0xFFD48B47)),
                   SizedBox(width: 6),
                   Text(
                     'HotTea',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize: 16,
+                      fontSize: 14,
                       color: Color(0xFFD48B47),
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 8),
+
+            // Navigation Controls: Back, Forward, Reload
+            IconButton(
+              icon: const Icon(Icons.arrow_back, size: 18),
+              tooltip: 'Back',
+              onPressed: activeTab.canGoBack ? () => activeTab.goBack() : null,
+            ),
+            IconButton(
+              icon: const Icon(Icons.arrow_forward, size: 18),
+              tooltip: 'Forward',
+              onPressed: activeTab.canGoForward ? () => activeTab.goForward() : null,
+            ),
+            IconButton(
+              icon: activeTab.isLoading
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFD48B47)),
+                    )
+                  : const Icon(Icons.refresh, size: 18),
+              tooltip: 'Reload',
+              onPressed: () => activeTab.reload(),
+            ),
+            const SizedBox(width: 4),
+
             // Address Bar
             Expanded(
               child: Container(
-                height: 38,
+                height: 36,
                 decoration: BoxDecoration(
                   color: const Color(0xFF0F1115),
                   borderRadius: BorderRadius.circular(8),
@@ -182,9 +253,9 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> {
                   onSubmitted: (_) => _onNavigate(),
                   style: const TextStyle(fontSize: 13),
                   decoration: InputDecoration(
-                    prefixIcon: const Icon(Icons.lock_outline, size: 16, color: Colors.greenAccent),
+                    prefixIcon: const Icon(Icons.lock_outline, size: 15, color: Colors.greenAccent),
                     suffixIcon: IconButton(
-                      icon: const Icon(Icons.arrow_forward, size: 16),
+                      icon: const Icon(Icons.arrow_forward, size: 15),
                       onPressed: _onNavigate,
                       tooltip: 'Navigate',
                     ),
@@ -199,13 +270,19 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.security, color: Colors.greenAccent),
+            icon: const Icon(Icons.note_add_outlined, size: 20),
+            tooltip: 'Clip to Notes',
+            onPressed: _clipActivePageToNotes,
+          ),
+          IconButton(
+            icon: const Icon(Icons.security, color: Colors.greenAccent, size: 20),
             tooltip: 'Privacy Audit',
             onPressed: _showPrivacyDisclosureDialog,
           ),
           IconButton(
             icon: Icon(
               _isRightPaneVisible ? Icons.view_sidebar : Icons.view_sidebar_outlined,
+              size: 20,
             ),
             tooltip: 'Toggle Research Workspace',
             onPressed: () {
@@ -216,108 +293,171 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> {
           ),
           const SizedBox(width: 8),
         ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(36),
+          child: Column(
+            children: [
+              // Tab strip
+              Container(
+                height: 34,
+                color: const Color(0xFF13151A),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _tabs.length,
+                        separatorBuilder: (context, index) => const SizedBox(width: 4),
+                        itemBuilder: (context, index) {
+                          final tab = _tabs[index];
+                          final isActive = index == _activeTabIndex;
+                          return InkWell(
+                            onTap: () {
+                              setState(() {
+                                _activeTabIndex = index;
+                                _urlController.text = tab.currentUrl?.toString() ?? '';
+                              });
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10),
+                              constraints: const BoxConstraints(maxWidth: 160),
+                              decoration: BoxDecoration(
+                                color: isActive ? const Color(0xFF0B0D11) : Colors.transparent,
+                                borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+                                border: Border(
+                                  top: BorderSide(
+                                    color: isActive ? const Color(0xFFD48B47) : Colors.transparent,
+                                    width: 2,
+                                  ),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      tab.currentTitle.isEmpty ? 'New Tab' : tab.currentTitle,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                                        color: isActive ? Colors.white : Colors.white60,
+                                      ),
+                                    ),
+                                  ),
+                                  if (_tabs.length > 1) ...[
+                                    const SizedBox(width: 4),
+                                    InkWell(
+                                      onTap: () => _closeTab(index),
+                                      child: const Icon(Icons.close, size: 14, color: Colors.white54),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.add, size: 16),
+                      tooltip: 'New Tab',
+                      onPressed: () => _createNewTab(),
+                    ),
+                  ],
+                ),
+              ),
+              // Linear loading progress indicator
+              if (activeTab.isLoading)
+                LinearProgressIndicator(
+                  value: activeTab.progress > 0 ? activeTab.progress : null,
+                  minHeight: 2,
+                  backgroundColor: Colors.transparent,
+                  valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFD48B47)),
+                )
+              else
+                const SizedBox(height: 2),
+            ],
+          ),
+        ),
       ),
       body: Row(
         children: [
-          // Left Pane: Browser View & Capability Diagnostics
+          // Left Pane: Browser Viewport & Navigation Error Banner
           Expanded(
             flex: _isRightPaneVisible ? 6 : 10,
             child: Container(
               color: const Color(0xFF0B0D11),
               child: Column(
                 children: [
-                  // Browser state bar
+                  // Navigation error notification banner
+                  if (activeTab.error != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      color: Colors.red.shade900.withAlpha(200),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.error_outline, size: 16, color: Colors.white),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Navigation Error: ${activeTab.error!.message}',
+                              style: const TextStyle(fontSize: 12, color: Colors.white),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () => activeTab.reload(),
+                            child: const Text('Retry', style: TextStyle(color: Colors.white, fontSize: 12)),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close, size: 14, color: Colors.white),
+                            onPressed: () => activeTab.clearError(),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                  // Engine capability info strip
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                     color: const Color(0xFF13161C),
                     child: Row(
                       children: [
-                        const Icon(Icons.circle, size: 10, color: Colors.greenAccent),
-                        const SizedBox(width: 8),
+                        const Icon(Icons.circle, size: 8, color: Colors.greenAccent),
+                        const SizedBox(width: 6),
                         Flexible(
                           child: Text(
                             'Engine: ${capabilities.underlyingEngineName}',
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 12, color: Colors.white70),
+                            style: const TextStyle(fontSize: 11, color: Colors.white70),
                           ),
                         ),
                         const SizedBox(width: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
                             color: Colors.white10,
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
                             'Platform: ${capabilities.platformName}',
-                            style: const TextStyle(fontSize: 11, color: Colors.white60),
+                            style: const TextStyle(fontSize: 10, color: Colors.white60),
                           ),
                         ),
                       ],
                     ),
                   ),
-                  // Browser content display area
+
+                  // Actual Webpage Rendering Viewport
                   Expanded(
-                    child: Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24.0),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(
-                              Icons.public,
-                              size: 48,
-                              color: Color(0xFFD48B47),
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Target URL: ${_urlController.text}',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            const Text(
-                              'Browser engine integration is decoupled via BrowserEngine contract.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(color: Colors.white60, fontSize: 13),
-                            ),
-                            const SizedBox(height: 24),
-                            Card(
-                              color: const Color(0xFF1A1D24),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                side: const BorderSide(color: Colors.white12),
-                              ),
-                              child: Padding(
-                                padding: const EdgeInsets.all(16.0),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text(
-                                      'Active Integration Diagnostics:',
-                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text('• Mode: ${capabilities.renderMode.name}'),
-                                    Text('• DOM Extraction: ${capabilities.supportsDomExtraction ? "Supported" : "Unsupported"}'),
-                                    Text('• Script Injection: ${capabilities.supportsScriptInjection ? "Supported" : "Unsupported"}'),
-                                    Text('• License: ${capabilities.license}'),
-                                    Text('• Telemetry: Disabled (Zero-telemetry policy)'),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+                    child: activeTab.engine.buildWidget(context),
                   ),
                 ],
               ),
             ),
           ),
+
           if (_isRightPaneVisible) ...[
             const VerticalDivider(width: 1, thickness: 1, color: Colors.white12),
             // Right Pane: Local Research Workspace & AI Gateway Panel
@@ -334,13 +474,13 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> {
                         children: [
                           Expanded(
                             child: InkWell(
-                              onTap: () => setState(() => _activeTab = 'notes'),
+                              onTap: () => setState(() => _activeRightTab = 'notes'),
                               child: Container(
-                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                padding: const EdgeInsets.symmetric(vertical: 10),
                                 decoration: BoxDecoration(
                                   border: Border(
                                     bottom: BorderSide(
-                                      color: _activeTab == 'notes'
+                                      color: _activeRightTab == 'notes'
                                           ? const Color(0xFFD48B47)
                                           : Colors.transparent,
                                       width: 2,
@@ -353,8 +493,8 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> {
                                   children: [
                                     Icon(
                                       Icons.note_alt_outlined,
-                                      size: 16,
-                                      color: _activeTab == 'notes'
+                                      size: 15,
+                                      color: _activeRightTab == 'notes'
                                           ? const Color(0xFFD48B47)
                                           : Colors.white54,
                                     ),
@@ -362,11 +502,11 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> {
                                     Text(
                                       'Notes',
                                       style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: _activeTab == 'notes'
+                                        fontSize: 12,
+                                        fontWeight: _activeRightTab == 'notes'
                                             ? FontWeight.bold
                                             : FontWeight.normal,
-                                        color: _activeTab == 'notes'
+                                        color: _activeRightTab == 'notes'
                                             ? Colors.white
                                             : Colors.white60,
                                       ),
@@ -378,13 +518,13 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> {
                           ),
                           Expanded(
                             child: InkWell(
-                              onTap: () => setState(() => _activeTab = 'ai'),
+                              onTap: () => setState(() => _activeRightTab = 'ai'),
                               child: Container(
-                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                padding: const EdgeInsets.symmetric(vertical: 10),
                                 decoration: BoxDecoration(
                                   border: Border(
                                     bottom: BorderSide(
-                                      color: _activeTab == 'ai'
+                                      color: _activeRightTab == 'ai'
                                           ? const Color(0xFFD48B47)
                                           : Colors.transparent,
                                       width: 2,
@@ -397,8 +537,8 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> {
                                   children: [
                                     Icon(
                                       Icons.auto_awesome_outlined,
-                                      size: 16,
-                                      color: _activeTab == 'ai'
+                                      size: 15,
+                                      color: _activeRightTab == 'ai'
                                           ? const Color(0xFFD48B47)
                                           : Colors.white54,
                                     ),
@@ -406,11 +546,11 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> {
                                     Text(
                                       'AI Gateway',
                                       style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: _activeTab == 'ai'
+                                        fontSize: 12,
+                                        fontWeight: _activeRightTab == 'ai'
                                             ? FontWeight.bold
                                             : FontWeight.normal,
-                                        color: _activeTab == 'ai'
+                                        color: _activeRightTab == 'ai'
                                             ? Colors.white
                                             : Colors.white60,
                                       ),
@@ -424,7 +564,7 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> {
                       ),
                     ),
                     Expanded(
-                      child: _activeTab == 'notes'
+                      child: _activeRightTab == 'notes'
                           ? Padding(
                               padding: const EdgeInsets.all(12.0),
                               child: TextField(

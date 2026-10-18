@@ -1,4 +1,4 @@
-# Threat Model & Storage Boundary Specification: `.qvault`
+# Threat Model & Storage Boundary Specification: `.tea`
 
 > **Security Baseline Notice:**  
 > In accordance with HotTea Core Requirement 6 & 7:  
@@ -7,9 +7,9 @@
 
 ---
 
-## 1. Overview of `.qvault`
+## 1. Overview of `.tea`
 
-The `.qvault` format is a planned local-first encrypted container designed to securely store:
+The `.tea` format is a planned local-first encrypted container designed to securely store:
 - User browsing session cookies, active credentials, and saved forms.
 - High-sensitivity research notebooks and extracted web clippings.
 - Local AI conversation history containing confidential prompt data.
@@ -21,11 +21,11 @@ The `.qvault` format is a planned local-first encrypted container designed to se
 
 | Threat Category | Description & Attack Vector | Impact | HotTea Mitigation Strategy |
 | :--- | :--- | :--- | :--- |
-| **Spoofing** | Attacker substitutes a forged `.qvault` archive or tampers with the container header. | Medium | **Authenticated Encryption (AEAD)** with cryptographic binding of header metadata to the cipher tag. |
+| **Spoofing** | Attacker substitutes a forged `.tea` archive or tampers with the container header. | Medium | **Authenticated Encryption (AEAD)** with cryptographic binding of header metadata to the cipher tag. |
 | **Tampering** | Modification of encrypted blocks in transit or on disk. | High | **AES-256-GCM** or **XChaCha20-Poly1305**. Any single bit flip invalidates authentication tag; container fails to open. |
 | **Repudiation** | Audit log evasion regarding when data was decrypted. | Low | Local immutable operation audit log stored within the container. |
 | **Information Disclosure** | Unauthorized extraction of secrets from local disk when the computer or device is lost, stolen, or shared. | Critical | Keys derived via **Argon2id** (memory-hard KDF). Zero-knowledge design: password never written to disk. |
-| **Denial of Service** | Corrupting vault headers to prevent user access. | Medium | Atomic write semantics (`.qvault.tmp` -> rename) with automated snapshot backups. |
+| **Denial of Service** | Corrupting vault headers to prevent user access. | Medium | Atomic write semantics (`.tea.tmp` -> rename) with automated snapshot backups. |
 | **Elevation of Privilege** | Malicious web page in browser abusing JavaScript bridge to access vault memory. | Critical | **Strict Process Isolation:** The browser engine runs in a sandboxed process. The vault key is never exposed to the JS runtime context. |
 
 ---
@@ -59,7 +59,7 @@ HotTea strictly adheres to established cryptographic standards:
    - Decrypted vault content exists strictly in volatile RAM.
    - Sensitive memory buffers must be zeroized/overwritten immediately after use (`zeroMemory()`).
 2. **Network Exemption:**
-   - `.qvault` containers and their derived encryption keys are **strictly local**.
-   - Under no circumstances shall `.qvault` raw files or decrypt keys be transmitted over the network or uploaded to any AI vendor.
+   - `.tea` containers and their derived encryption keys are **strictly local**.
+   - Under no circumstances shall `.tea` raw files or decrypt keys be transmitted over the network or uploaded to any AI vendor.
 3. **No Premature Implementation:**
    - Container implementation will commence only after the unified storage abstraction (`LocalPersistenceRepository`) is operational, and cryptographic unit test vectors (NIST CAVP test vectors) are integrated into CI.

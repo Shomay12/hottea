@@ -52,5 +52,5 @@ This roadmap outlines the milestones and engineering phases required to deliver 
 
 ### Phase 5: Verification & Delivery (M5)
 1. Run automated integration test suite across platforms.
-2. Conduct security self-check against `.qvault` threat model principles.
+2. Conduct security self-check against `.tea` threat model principles.
 3. Prepare MVP release notes and demonstration artifacts.

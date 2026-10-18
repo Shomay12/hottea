@@ -129,10 +129,38 @@ To guarantee that the shared UI code (tabs, address bar, split-view workspace, b
 1. **`BrowserEngine` Contract**:
    All UI widgets only interact with `lib/features/browser/domain/browser_engine.dart`.
 2. **Conditional Platform Registrars**:
-   A factory registry loads the appropriate adapter at runtime:
-   - `WindowsBrowserAdapter` (WebView2)
+   A factory registry (`BrowserEngineFactory`) loads the appropriate adapter at runtime:
+   - `InAppBrowserEngine` (Web, macOS, iOS, Android, Windows)
    - `LinuxBrowserAdapter` (WebKitGTK / CEF)
-   - `MacOSBrowserAdapter` (WKWebView)
-   - `AndroidBrowserAdapter` (Android WebView)
-   - `IosBrowserAdapter` (WKWebView)
-   - `MockBrowserEngine` (Tests, CI, and environments without native display runtimes)
+   - `MockBrowserEngine` (Headless unit/widget tests and CI environments)
+
+---
+
+## 4. Multi-Tab Architectural Limitations & Session Boundaries
+
+In HotTea's tab model (`BrowserTab`), each tab encapsulates an independent `BrowserEngine` controller with isolated URL history, progress, error, and navigation state. However, the underlying platform runtimes introduce critical session and memory boundaries:
+
+1. **Shared Process & Cookie Context**:
+   - On native WebKit (`WKWebView`) and Chromium (`WebView2` / Android System WebView), separate in-app webview instances default to sharing the same HTTP cookie jar and local storage partition unless an explicit ephemeral `WKWebsiteDataStore` or separate `WebViewEnvironment` is configured.
+   - For HotTea's privacy roadmap, future milestones must introduce optional incognito/containerized tabs with isolated ephemeral storage.
+2. **Web Platform Security Boundaries (Iframe Embedding)**:
+   - When running on Web (Chrome/Safari), the browser engine operates inside an HTML5 `<iframe>` container (`flutter_inappwebview_web`).
+   - Many major websites (e.g. `google.com`, `github.com`) explicitly set HTTP response headers `X-Frame-Options: SAMEORIGIN` or `Content-Security-Policy: frame-ancestors 'self'`. Modern browsers refuse to embed these cross-origin pages inside an iframe.
+   - Cross-origin DOM extraction is strictly blocked by the browser sandbox on the Web target (`SecurityError`). Full DOM extraction for research notes and AI context is natively functional on desktop (macOS/Windows) and mobile (Android/iOS).
+3. **Hardware Texture & Memory Consumption**:
+   - Each active tab running a native webview consumes GPU texture memory. On mobile devices or low-spec desktop hardware, background tabs should be lazily suspended or serialized to preserve system memory.
+
+---
+
+## 5. Platform Verification Matrix (Empirical Audit)
+
+| Target Platform | Compilation | App Launch | Webpage Rendering | Navigation & Tabs | Verification Status & Host Constraints |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Web (Chrome)** | ✅ Succeeded (`flutter build web`) | ✅ Succeeded (Chrome 155 headless & static server) | ✅ Succeeded (HTML5 iframe viewport) | ✅ Succeeded (Tab creation, switching, error banner) | **Verified**. Primary vertical slice on this host. |
+| **Unit / Widget Test** | ✅ Succeeded (`flutter test`) | ✅ Succeeded (4/4 tests passed) | N/A (Headless) | ✅ Succeeded (History, Back/Forward, Schemes) | **Verified**. Automated regression test harness. |
+| **macOS Desktop** | ❌ Blocked | ❌ Blocked | ❌ Blocked | ❌ Blocked | **Blocked on Host**: Full `Xcode.app` not installed (`xcodebuild` utility missing). |
+| **iOS** | ❌ Blocked | ❌ Blocked | ❌ Blocked | ❌ Blocked | **Blocked on Host**: Full `Xcode.app` not installed. |
+| **Android** | ❌ Blocked | ❌ Blocked | ❌ Blocked | ❌ Blocked | **Blocked on Host**: Android SDK `cmdline-tools` missing. |
+| **Windows Desktop** | ⚠️ Untested | ⚠️ Untested | ⚠️ Untested | ⚠️ Untested | **Untested**: macOS host cannot cross-compile or run Win32 WebView2. |
+| **Linux Desktop** | ⚠️ Untested | ⚠️ Untested | ⚠️ Untested | ⚠️ Untested | **Untested**: macOS host cannot cross-compile or run Linux GTK. |
+

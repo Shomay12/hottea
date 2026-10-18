@@ -37,7 +37,7 @@ HotTea reimagines web research by uniting a native web browser with a local-firs
 
 * **[ARCHITECTURE.md](file:///Users/quaxiom/Documents/DEVLOPMENT/Projects/HotTea/ARCHITECTURE.md)**: System design, high-level diagrams, invariants, and directory structure.
 * **[Platform Browser Analysis](file:///Users/quaxiom/Documents/DEVLOPMENT/Projects/HotTea/docs/platform_browser_analysis.md)**: Feasibility, maintenance status, and licenses for browser runtimes across all 5 platforms.
-* **[Threat Model & Storage Boundaries](file:///Users/quaxiom/Documents/DEVLOPMENT/Projects/HotTea/docs/threat_model_qvault.md)**: Threat model and security rules for local persistence and future `.qvault` encrypted containers.
+* **[Threat Model & Storage Boundaries](file:///Users/quaxiom/Documents/DEVLOPMENT/Projects/HotTea/docs/threat_model_tea.md)**: Threat model and security rules for local persistence and future `.tea` encrypted containers.
 * **[MVP Implementation Plan](file:///Users/quaxiom/Documents/DEVLOPMENT/Projects/HotTea/docs/mvp_implementation_plan.md)**: Prioritized roadmap targeting October 31, 2026.
 
 ---

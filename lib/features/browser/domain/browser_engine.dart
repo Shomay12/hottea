@@ -41,13 +41,31 @@ class BrowserPlatformCapabilities {
   });
 }
 
+/// Information describing a navigation or engine error.
+class BrowserNavigationError {
+  final Uri? failedUrl;
+  final String message;
+  final int? statusCode;
+  final DateTime timestamp;
+
+  BrowserNavigationError({
+    this.failedUrl,
+    required this.message,
+    this.statusCode,
+    DateTime? timestamp,
+  }) : timestamp = timestamp ?? DateTime.now();
+
+  @override
+  String toString() => 'BrowserNavigationError($failedUrl, $message, status: $statusCode)';
+}
+
 /// Abstract contract decoupling browser engine implementations from shared UI code.
 ///
-/// Any platform integration (WebView2, WKWebView, Android WebView, CEF, WebKitGTK)
+/// Any platform integration (InAppWebView, WebView2, WKWebView, WebKitGTK)
 /// must implement this interface. Shared UI components must ONLY interact with this contract.
 abstract class BrowserEngine {
   /// Initializes the browser engine runtime.
-  Future<void> initialize();
+  Future<void> initialize({Uri? initialUrl});
 
   /// Navigates to a specific URL.
   Future<void> loadUrl(Uri url);
@@ -61,6 +79,9 @@ abstract class BrowserEngine {
   /// Reloads the current page.
   Future<void> reload();
 
+  /// Clears any active navigation error.
+  void clearError();
+
   /// Safely extracts text/DOM content from the active page for local research.
   /// Content extraction must be explicit and user-consented.
   Future<String?> extractPageContent();
@@ -68,7 +89,7 @@ abstract class BrowserEngine {
   /// Evaluates JavaScript within the page context.
   Future<dynamic> evaluateJavascript(String script);
 
-  /// Builds the widget to display inside Flutter (or a placeholder if [renderMode] is nativeWindow).
+  /// Builds the widget to display inside Flutter.
   Widget buildWidget(BuildContext context);
 
   /// Disposes of the engine resources.
@@ -79,6 +100,18 @@ abstract class BrowserEngine {
   Stream<String> get titleStream;
   Stream<double> get progressStream;
   Stream<bool> get isLoadingStream;
+  Stream<bool> get canGoBackStream;
+  Stream<bool> get canGoForwardStream;
+  Stream<BrowserNavigationError?> get errorStream;
+
+  /// Current synchronous state getters.
+  Uri? get currentUrl;
+  String get currentTitle;
+  double get progress;
+  bool get isLoading;
+  bool get canGoBack;
+  bool get canGoForward;
+  BrowserNavigationError? get currentError;
 
   /// Active platform capabilities for this engine.
   BrowserPlatformCapabilities get capabilities;
@@ -91,9 +124,19 @@ class MockBrowserEngine implements BrowserEngine {
   final _titleController = StreamController<String>.broadcast();
   final _progressController = StreamController<double>.broadcast();
   final _loadingController = StreamController<bool>.broadcast();
+  final _canGoBackController = StreamController<bool>.broadcast();
+  final _canGoForwardController = StreamController<bool>.broadcast();
+  final _errorController = StreamController<BrowserNavigationError?>.broadcast();
+
+  final List<Uri> _history = [];
+  int _historyIndex = -1;
 
   Uri? _currentUrl;
   String _currentTitle = 'HotTea Home';
+  bool _isLoading = false;
+  bool _canGoBack = false;
+  bool _canGoForward = false;
+  BrowserNavigationError? _currentError;
   bool _disposed = false;
 
   @override
@@ -101,50 +144,105 @@ class MockBrowserEngine implements BrowserEngine {
 
   MockBrowserEngine({
     this.capabilities = const BrowserPlatformCapabilities(
-      platformName: 'Mock/Fallback Engine',
+      platformName: 'Mock/Test Engine',
       renderMode: BrowserRenderMode.inlineWidget,
       supportsDomExtraction: true,
       supportsScriptInjection: true,
       supportsCookieIsolation: true,
       supportsInlineDevTools: false,
-      underlyingEngineName: 'HotTea Lightweight Mock Runtime',
+      underlyingEngineName: 'HotTea In-Memory Simulation Runtime',
       license: 'Apache-2.0',
       notes: 'Safe local mock engine for testing and headless validation.',
     ),
   });
 
   @override
-  Future<void> initialize() async {
-    _currentUrl = Uri.parse('about:blank');
-    _urlController.add(_currentUrl);
-    _titleController.add(_currentTitle);
-    _progressController.add(1.0);
-    _loadingController.add(false);
+  Future<void> initialize({Uri? initialUrl}) async {
+    final start = initialUrl ?? Uri.parse('about:blank');
+    await loadUrl(start);
   }
 
   @override
   Future<void> loadUrl(Uri url) async {
+    clearError();
+    _isLoading = true;
     _loadingController.add(true);
     _progressController.add(0.2);
+
+    // Validate URL scheme
+    if (url.scheme != 'http' && url.scheme != 'https' && url.scheme != 'about') {
+      _isLoading = false;
+      _loadingController.add(false);
+      _progressController.add(1.0);
+      _currentError = BrowserNavigationError(
+        failedUrl: url,
+        message: 'Unsupported scheme: ${url.scheme}. Only HTTP/HTTPS/about URLs are supported.',
+      );
+      _errorController.add(_currentError);
+      return;
+    }
+
     _currentUrl = url;
     _urlController.add(url);
     _currentTitle = url.host.isEmpty ? url.toString() : url.host;
     _titleController.add(_currentTitle);
+
+    // Append to history
+    if (_historyIndex < _history.length - 1) {
+      _history.removeRange(_historyIndex + 1, _history.length);
+    }
+    _history.add(url);
+    _historyIndex = _history.length - 1;
+
+    _updateHistoryState();
+
     _progressController.add(1.0);
+    _isLoading = false;
     _loadingController.add(false);
   }
 
-  @override
-  Future<void> goBack() async {}
+  void _updateHistoryState() {
+    _canGoBack = _historyIndex > 0;
+    _canGoForward = _historyIndex < _history.length - 1;
+    _canGoBackController.add(_canGoBack);
+    _canGoForwardController.add(_canGoForward);
+  }
 
   @override
-  Future<void> goForward() async {}
+  Future<void> goBack() async {
+    if (_canGoBack && _historyIndex > 0) {
+      _historyIndex--;
+      _currentUrl = _history[_historyIndex];
+      _urlController.add(_currentUrl);
+      _currentTitle = _currentUrl!.host.isEmpty ? _currentUrl.toString() : _currentUrl!.host;
+      _titleController.add(_currentTitle);
+      _updateHistoryState();
+    }
+  }
+
+  @override
+  Future<void> goForward() async {
+    if (_canGoForward && _historyIndex < _history.length - 1) {
+      _historyIndex++;
+      _currentUrl = _history[_historyIndex];
+      _urlController.add(_currentUrl);
+      _currentTitle = _currentUrl!.host.isEmpty ? _currentUrl.toString() : _currentUrl!.host;
+      _titleController.add(_currentTitle);
+      _updateHistoryState();
+    }
+  }
 
   @override
   Future<void> reload() async {
     if (_currentUrl != null) {
       await loadUrl(_currentUrl!);
     }
+  }
+
+  @override
+  void clearError() {
+    _currentError = null;
+    _errorController.add(null);
   }
 
   @override
@@ -170,6 +268,9 @@ class MockBrowserEngine implements BrowserEngine {
     await _titleController.close();
     await _progressController.close();
     await _loadingController.close();
+    await _canGoBackController.close();
+    await _canGoForwardController.close();
+    await _errorController.close();
   }
 
   @override
@@ -183,4 +284,34 @@ class MockBrowserEngine implements BrowserEngine {
 
   @override
   Stream<bool> get isLoadingStream => _loadingController.stream;
+
+  @override
+  Stream<bool> get canGoBackStream => _canGoBackController.stream;
+
+  @override
+  Stream<bool> get canGoForwardStream => _canGoForwardController.stream;
+
+  @override
+  Stream<BrowserNavigationError?> get errorStream => _errorController.stream;
+
+  @override
+  Uri? get currentUrl => _currentUrl;
+
+  @override
+  String get currentTitle => _currentTitle;
+
+  @override
+  double get progress => 1.0;
+
+  @override
+  bool get isLoading => _isLoading;
+
+  @override
+  bool get canGoBack => _canGoBack;
+
+  @override
+  bool get canGoForward => _canGoForward;
+
+  @override
+  BrowserNavigationError? get currentError => _currentError;
 }

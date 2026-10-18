@@ -1,4 +1,4 @@
-# HotTea Architecture Specification
+git # HotTea Architecture Specification
 
 HotTea is an open-source, local-first, privacy-focused AI browser and research workspace targeting **Windows**, **Linux**, **macOS**, **Android**, and **iOS**.
 
@@ -49,7 +49,7 @@ HotTea is an open-source, local-first, privacy-focused AI browser and research w
 │                     LOCAL PERSISTENCE LAYER                             │
 ├─────────────────────────────────────────────────────────────────────────┤
 │ • SQLite / Structured Storage: History, Bookmarks, Research Notes       │
-│ • Future Encrypted Container: `.qvault` (AES-256-GCM / Argon2id)        │
+│ • Future Encrypted Container: `.tea` (AES-256-GCM / Argon2id)           │
 │ • Strict Boundary: Zero default telemetry, zero hidden sync            │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
@@ -69,7 +69,7 @@ hottea/
 ├── web/                     # Web runner & fallback preview
 ├── docs/                    # Architectural specs, threat models, and plans
 │   ├── platform_browser_analysis.md
-│   ├── threat_model_qvault.md
+│   ├── threat_model_tea.md
 │   └── mvp_implementation_plan.md
 ├── lib/
 │   ├── core/                # Core application infrastructure
@@ -111,7 +111,7 @@ Under no circumstances may a request intended for a local model automatically or
 HotTea does not include third-party tracking, advertising SDKs, crash beacons, or usage analytics by default.
 
 ### Invariant 4: Standards-Based Cryptography
-For the planned `.qvault` secure container:
+For the planned `.tea` secure container:
 - No proprietary or custom cryptographic algorithms.
 - Industry-standard primitives: `Argon2id` for key derivation, `AES-256-GCM` or `XChaCha20-Poly1305` for authenticated encryption.
 - No claims of absolute security without formal test suites and peer review.

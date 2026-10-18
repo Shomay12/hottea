@@ -83,3 +83,4 @@ flutter run -d linux
 ## 📄 License
 
 HotTea is licensed under the **[Apache License 2.0](file:///Users/quaxiom/Documents/DEVLOPMENT/Projects/HotTea/LICENSE)**.
+# hottea

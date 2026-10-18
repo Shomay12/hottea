@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hottea/core/persistence/in_memory_persistence_repository.dart';
 import 'package:hottea/features/browser/domain/browser_engine.dart';
 import 'package:hottea/features/browser/domain/browser_tab.dart';
 import 'package:hottea/main.dart';
@@ -7,8 +8,12 @@ import 'package:hottea/main.dart';
 void main() {
   group('HotTea UI & Tab System Smoke Tests', () {
     testWidgets('Renders brand, address bar, navigation controls, and research notes', (WidgetTester tester) async {
-      await tester.pumpWidget(const HotTeaApp());
-      await tester.pump();
+      final repo = InMemoryPersistenceRepository();
+      await tester.pumpWidget(HotTeaApp(
+        persistenceRepository: repo,
+        forceMockBrowser: true,
+      ));
+      await tester.pumpAndSettle();
 
       // Verify brand title is displayed
       expect(find.text('HotTea'), findsOneWidget);
@@ -24,22 +29,56 @@ void main() {
       // Verify Tab strip and New Tab button are present
       expect(find.byTooltip('New Tab'), findsOneWidget);
 
-      // Verify Notes tab is present
+      // Verify Notes, Bookmarks, History, and AI tabs are present
       expect(find.text('Notes'), findsOneWidget);
+      expect(find.text('Bookmarks'), findsOneWidget);
+      expect(find.text('History'), findsOneWidget);
+      expect(find.text('AI'), findsOneWidget);
     });
 
     testWidgets('Tab model: can create, switch, and close tabs', (WidgetTester tester) async {
-      await tester.pumpWidget(const HotTeaApp());
-      await tester.pump();
+      final repo = InMemoryPersistenceRepository();
+      await tester.pumpWidget(HotTeaApp(
+        persistenceRepository: repo,
+        forceMockBrowser: true,
+      ));
+      await tester.pumpAndSettle();
 
       // Tap "New Tab" button
       await tester.tap(find.byTooltip('New Tab'));
-      await tester.pump();
+      await tester.pumpAndSettle();
 
       // Close the second tab using the close icon
       expect(find.byIcon(Icons.close), findsWidgets);
       await tester.tap(find.byIcon(Icons.close).first);
-      await tester.pump();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('Workspace panes: can switch to Bookmarks and History views', (WidgetTester tester) async {
+      final repo = InMemoryPersistenceRepository();
+      await tester.pumpWidget(HotTeaApp(
+        persistenceRepository: repo,
+        forceMockBrowser: true,
+      ));
+      await tester.pumpAndSettle();
+
+      // Switch to Bookmarks
+      await tester.tap(find.text('Bookmarks'));
+      await tester.pumpAndSettle();
+      expect(find.text('No Bookmarks Saved'), findsOneWidget);
+
+      // Toggle Bookmark on active page
+      await tester.tap(find.byTooltip('Bookmark Page'));
+      await tester.pumpAndSettle();
+
+      // Should now list the bookmarked page
+      expect(find.text('No Bookmarks Saved'), findsNothing);
+      expect(find.byIcon(Icons.bookmark), findsOneWidget);
+
+      // Switch to History
+      await tester.tap(find.text('History'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ListView), findsWidgets);
     });
   });
 

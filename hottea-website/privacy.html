@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy &amp; Data Control — HotTea Browser</title>
+  <meta name="description" content="Detailed breakdown of HotTea's privacy architecture: zero telemetry, local SQLite storage, search transparency, and data boundaries.">
+  <meta name="theme-color" content="#0C0D11">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="HotTea Privacy &amp; Data Control Specification">
+  <meta property="og:description" content="Transparent, fact-based disclosure of HotTea's data storage, network traffic, and security model.">
+
+  <!-- Stylesheets -->
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="stylesheet" href="assets/css/responsive.css">
+
+  <!-- Favicon SVG -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23D48B47' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M18 8h1a4 4 0 0 1 0 8h-1'></path><path d='M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z'></path><line x1='6' y1='1' x2='6' y2='4'></line><line x1='10' y1='1' x2='10' y2='4'></line><line x1='14' y1='1' x2='14' y2='4'></line></svg>">
+</head>
+<body>
+
+  <a href="#main-content" class="skip-to-content">Skip to content</a>
+
+  <!-- Header -->
+  <header class="site-header">
+    <div class="container nav-container">
+      <a href="index.html" class="brand-link">
+        <svg class="brand-logo-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 8h1a4 4 0 0 1 0 8h-1"></path>
+          <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path>
+          <line x1="6" y1="1" x2="6" y2="4"></line>
+          <line x1="10" y1="1" x2="10" y2="4"></line>
+          <line x1="14" y1="1" x2="14" y2="4"></line>
+        </svg>
+        <span>HotTea</span>
+        <span class="brand-badge">Privacy</span>
+      </a>
+
+      <nav id="nav-menu" class="nav-menu" aria-label="Primary Navigation">
+        <a href="index.html" class="nav-link">Home</a>
+        <a href="index.html#features" class="nav-link">Features</a>
+        <a href="downloads.html" class="nav-link">Downloads</a>
+        <a href="docs.html" class="nav-link">Documentation</a>
+        <a href="index.html#contributors" class="nav-link">Contributors</a>
+        <a href="privacy.html" class="nav-link active">Privacy</a>
+        <a href="about.html" class="nav-link">About</a>
+        <a href="https://github.com/Shomay12/hottea" class="nav-link" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+
+      <div class="nav-actions">
+        <button id="theme-toggle" class="btn-icon" aria-label="Toggle theme">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+          </svg>
+        </button>
+        <button id="mobile-menu-btn" class="btn-icon mobile-menu-btn" aria-label="Toggle mobile menu" aria-expanded="false">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main-content" class="container container-narrow section">
+    <div style="margin-bottom: 48px;">
+      <span class="section-tag">Privacy Policy &amp; Architecture</span>
+      <h1 class="section-title" style="margin-top: 12px;">Privacy &amp; Data Control Specification</h1>
+      <p class="section-subtitle">
+        A fact-based explanation of how HotTea handles your data, network requests, and persistence boundaries.
+      </p>
+    </div>
+
+    <!-- Section 1: Data Stored Locally -->
+    <section style="margin-bottom: 40px;">
+      <h2>1. What Data HotTea Stores Locally</h2>
+      <p>
+        HotTea stores all user data in a local SQLite database located within your device's standard application data directory (e.g., <code>~/Library/Containers/org.hottea.hottea/Data/Documents/hottea.db</code> on sandboxed macOS/iOS, or <code>~/.local/share/hottea/</code> on Linux):
+      </p>
+      <ul>
+        <li><strong>Bookmarks</strong>: URLs, titles, and categories explicitly bookmarked by you.</li>
+        <li><strong>Browsing History</strong>: Visited URLs, page titles, and timestamps created during regular (non-private) browsing.</li>
+        <li><strong>Research Notes</strong>: Notes and web snippets clipped from webpages, including cited source URLs.</li>
+        <li><strong>Session State</strong>: List of currently open tab URLs to restore your workspace when restarting the application.</li>
+      </ul>
+      <p>
+        <strong>Zero Cloud Sync by Default:</strong> This data is never synchronized with any remote server unless you configure an external backup mechanism outside HotTea.
+      </p>
+    </section>
+
+    <!-- Section 2: External Network Traffic -->
+    <section style="margin-bottom: 40px;">
+      <h2>2. External Network Communications</h2>
+      <p>
+        HotTea initiates outbound network connections only under direct user instruction:
+      </p>
+      <ul>
+        <li><strong>Direct Web Browsing</strong>: When you navigate to a website, your device connects directly to that website's host server over standard HTTP/HTTPS.</li>
+        <li><strong>Search Engine Queries</strong>: When entering search terms into the address bar, HotTea formats a standard query URL for your active provider (Google, DuckDuckGo, Bing, or Brave Search). The query is sent directly to that provider. We do not use intermediary proxy servers.</li>
+        <li><strong>Optional AI Providers</strong>: In future releases, AI interactions will connect directly to the provider endpoint you explicitly configure (e.g., OpenAI, Anthropic, or a local Ollama instance). HotTea will prohibit silent fallback to remote cloud servers.</li>
+      </ul>
+    </section>
+
+    <!-- Section 3: Telemetry & Analytics -->
+    <section style="margin-bottom: 40px;">
+      <h2>3. First-Party Telemetry &amp; Tracking</h2>
+      <p>
+        <strong>HotTea contains zero first-party telemetry.</strong> Specifically:
+      </p>
+      <ul>
+        <li>No user tracking or analytics SDKs (Google Analytics, Mixpanel, Firebase, etc.).</li>
+        <li>No automatic crash report uploads containing memory dumps or browsing traces.</li>
+        <li>No advertisement measurement beacons.</li>
+        <li>No user account registration or mandatory licensing servers.</li>
+      </ul>
+    </section>
+
+    <!-- Section 4: Private vs Anonymous Browsing -->
+    <section style="margin-bottom: 40px;">
+      <h2>4. Private Browsing vs. Anonymous Browsing</h2>
+      <p>
+        It is essential to understand what Private Browsing in HotTea does and does not do:
+      </p>
+      <div class="callout-box" style="margin-top: 16px;">
+        <h4 style="color:var(--text-primary); margin-bottom: 6px;">What Private Mode Does:</h4>
+        <p>
+          Private tabs instruct WebKit not to commit disk cache files or persistent cookies. HotTea will not record visits or URLs opened in private tabs to your local browsing history database.
+        </p>
+        <h4 style="color:var(--text-primary); margin-bottom: 6px;">What Private Mode Does Not Do:</h4>
+        <p style="margin-bottom:0;">
+          Private mode does <strong>not</strong> anonymize your network traffic. Destination websites, internet service providers (ISPs), and network operators can still observe your IP address, DNS lookups, and TLS server name indications (SNI). For network-level anonymity, use dedicated onion routing tools such as Tor.
+        </p>
+      </div>
+    </section>
+
+    <!-- Section 5: Encryption Boundaries -->
+    <section style="margin-bottom: 40px;">
+      <h2>5. Current Encryption Status &amp; Roadmap</h2>
+      <p>
+        In the current version (v0.1.0 Alpha):
+      </p>
+      <ul>
+        <li>The local SQLite database (<code>hottea.db</code>) is stored unencrypted in plaintext within the application sandbox. It relies on operating system access controls (e.g., FileVault on macOS, iOS Data Protection, or BitLocker on Windows).</li>
+        <li><strong>Planned <code>.tea</code> Vault:</strong> An encrypted container specification is documented in our repository (<code>docs/threat_model_tea.md</code>). Implementation of authenticated encrypted storage (e.g., AES-GCM or XChaCha20-Poly1305 with Argon2id key derivation) is planned for Phase 5 of the project roadmap.</li>
+      </ul>
+    </section>
+
+    <!-- Section 6: Legal & Open Source Notice -->
+    <section style="margin-bottom: 60px;">
+      <h2>6. Open Source License &amp; Warranty</h2>
+      <p>
+        HotTea is open-source software provided under the Apache License 2.0. As stated in Section 8 of the license, HotTea is provided on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+      </p>
+      <p>
+        If you discover a potential privacy or security issue, please contact the maintainers through our responsible disclosure process at <a href="https://github.com/Shomay12/hottea/security/advisories" target="_blank" rel="noopener">GitHub Security Advisories</a>.
+      </p>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="index.html" class="brand-link">
+            <svg class="brand-logo-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 8h1a4 4 0 0 1 0 8h-1"></path>
+              <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path>
+              <line x1="6" y1="1" x2="6" y2="4"></line>
+              <line x1="10" y1="1" x2="10" y2="4"></line>
+              <line x1="14" y1="1" x2="14" y2="4"></line>
+            </svg>
+            <span>HotTea</span>
+          </a>
+          <p>An open-source, privacy-first AI browser and research workspace.</p>
+        </div>
+        <div>
+          <h4 class="footer-heading">Project</h4>
+          <ul class="footer-links">
+            <li><a href="downloads.html">Downloads</a></li>
+            <li><a href="docs.html">Documentation</a></li>
+            <li><a href="privacy.html">Privacy Model</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="footer-heading">Community</h4>
+          <ul class="footer-links">
+            <li><a href="https://github.com/Shomay12/hottea" target="_blank" rel="noopener">GitHub</a></li>
+            <li><a href="index.html#contributors">Contributors</a></li>
+            <li><a href="https://github.com/Shomay12/hottea/issues" target="_blank" rel="noopener">Issues</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="footer-heading">License</h4>
+          <ul class="footer-links">
+            <li><a href="https://github.com/Shomay12/hottea/blob/main/LICENSE" target="_blank" rel="noopener">Apache License 2.0</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span>&copy; 2026 HotTea. Created by Shomayyy12 and Open Source Contributors. Licensed under Apache 2.0.</span>
+        <span>Version: Alpha Preview (Source v0.1.0)</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="assets/js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HotTea — Open-Source Browser & Research Workspace</title>
+  <meta name="description" content="HotTea is a privacy-first, local-first open-source browser and research workspace built with Flutter and Dart, supporting multi-provider web search, tab management, and local SQLite persistence.">
+  <meta name="theme-color" content="#0C0D11">
+
+  <!-- Open Graph / Social Sharing -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="HotTea — Open-Source Browser & Research Workspace">
+  <meta property="og:description" content="A privacy-first, local-first browser built around user control, transparent AI integration, and local data persistence.">
+  <meta property="og:url" content="https://shomay12.github.io/hottea/">
+
+  <!-- Stylesheets -->
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="stylesheet" href="assets/css/responsive.css">
+
+  <!-- Favicon SVG -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23D48B47' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M18 8h1a4 4 0 0 1 0 8h-1'></path><path d='M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z'></path><line x1='6' y1='1' x2='6' y2='4'></line><line x1='10' y1='1' x2='10' y2='4'></line><line x1='14' y1='1' x2='14' y2='4'></line></svg>">
+</head>
+<body>
+
+  <!-- Accessible Skip Link -->
+  <a href="#main-content" class="skip-to-content">Skip to content</a>
+
+  <!-- Site Navigation -->
+  <header class="site-header">
+    <div class="container nav-container">
+      <a href="index.html" class="brand-link" aria-label="HotTea Homepage">
+        <svg class="brand-logo-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 8h1a4 4 0 0 1 0 8h-1"></path>
+          <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path>
+          <line x1="6" y1="1" x2="6" y2="4"></line>
+          <line x1="10" y1="1" x2="10" y2="4"></line>
+          <line x1="14" y1="1" x2="14" y2="4"></line>
+        </svg>
+        <span>HotTea</span>
+        <span class="brand-badge">Open Source</span>
+      </a>
+
+      <!-- Desktop & Mobile Navigation Links -->
+      <nav id="nav-menu" class="nav-menu" aria-label="Primary Navigation">
+        <a href="#features" class="nav-link">Features</a>
+        <a href="downloads.html" class="nav-link">Downloads</a>
+        <a href="docs.html" class="nav-link">Documentation</a>
+        <a href="#contributors" class="nav-link">Contributors</a>
+        <a href="privacy.html" class="nav-link">Privacy</a>
+        <a href="about.html" class="nav-link">About</a>
+        <a href="https://github.com/Shomay12/hottea" class="nav-link" target="_blank" rel="noopener">
+          GitHub <span id="github-stars-count" style="display:none; font-size:0.75rem; color:var(--accent-primary); margin-left:4px;"></span>
+        </a>
+      </nav>
+
+      <!-- Utility Actions -->
+      <div class="nav-actions">
+        <button id="theme-toggle" class="btn-icon" aria-label="Toggle theme">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+        </button>
+        <button id="mobile-menu-btn" class="btn-icon mobile-menu-btn" aria-label="Toggle mobile menu" aria-expanded="false">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main-content">
+    <!-- Hero Section -->
+    <section class="hero-section">
+      <div class="container">
+        <div class="hero-badge">
+          <span class="hero-badge-pill">Alpha</span>
+          <span>Privacy-First Browser & Research Workspace</span>
+        </div>
+        <h1 class="hero-title">Your browser. Your research. <span class="highlight">Your control.</span></h1>
+        <p class="hero-description">
+          HotTea is an open-source browser and research workspace built around user control, transparent AI integration, and local-first data management.
+        </p>
+        <div class="hero-actions">
+          <a href="downloads.html" class="btn btn-primary btn-lg">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            Download HotTea
+          </a>
+          <a href="https://github.com/Shomay12/hottea" class="btn btn-secondary btn-lg" target="_blank" rel="noopener">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"></path>
+            </svg>
+            Explore on GitHub
+          </a>
+        </div>
+
+        <!-- Illustrative Pure HTML/CSS Browser Mockup -->
+        <div class="mockup-wrapper">
+          <div class="mockup-frame">
+            <div class="mockup-titlebar">
+              <div class="window-dots">
+                <span class="window-dot dot-red"></span>
+                <span class="window-dot dot-yellow"></span>
+                <span class="window-dot dot-green"></span>
+              </div>
+              <div class="mockup-tab-strip">
+                <div class="mockup-tab active">
+                  <span>🍵 HotTea Workspace</span>
+                </div>
+                <div class="mockup-tab">
+                  <span>pub.dev — Dart Packages</span>
+                </div>
+                <div class="mockup-tab">
+                  <span>Brave Search</span>
+                </div>
+              </div>
+            </div>
+            <div class="mockup-toolbar">
+              <div class="mockup-nav-btns">
+                <span>◀</span>
+                <span>▶</span>
+                <span>↻</span>
+              </div>
+              <div class="mockup-addressbar">
+                <span class="provider-tag">Google</span>
+                <span style="color:var(--text-muted);">🔒</span>
+                <span>https://pub.dev/packages/sqflite_common_ffi</span>
+                <span style="margin-left:auto; color:var(--accent-primary);">★</span>
+              </div>
+            </div>
+            <div class="mockup-viewport">
+              <div class="mockup-webview">
+                <h2 class="mockup-web-header">sqflite_common_ffi 2.4.0</h2>
+                <div class="mockup-web-source">Source: pub.dev · Verified Package</div>
+                <p class="mockup-web-body">
+                  SQLite FFI implementation for desktop (macOS, Linux, Windows) and mobile. HotTea stores bookmarks, history, and notes locally using SQLite without third-party cloud synchronization.
+                </p>
+              </div>
+              <div class="mockup-sidebar">
+                <div class="mockup-sidebar-title">
+                  <span>Research Workspace</span>
+                  <span style="font-size:0.7rem; color:var(--status-ready);">● Local</span>
+                </div>
+                <div class="mockup-note-card">
+                  <span class="mockup-note-meta">Clipped from pub.dev</span>
+                  <p style="margin:0; font-size:0.8rem; color:var(--text-secondary);">
+                    sqflite_common_ffi provides native C SQLite execution on macOS and Linux desktop with robust thread safety.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p class="mockup-caption">Illustrative preview of HotTea browser and research workspace layout.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Project Capabilities Matrix -->
+    <section id="features" class="section section-alt">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-tag">Capabilities</span>
+          <h2 class="section-title">Transparent Project Features</h2>
+          <p class="section-subtitle">
+            We clearly distinguish implemented functionality from experimental components and future roadmap milestones.
+          </p>
+        </div>
+
+        <div class="feature-grid">
+          <!-- Implemented: Multi-Provider Search -->
+          <div class="feature-card">
+            <div class="feature-card-header">
+              <div class="feature-icon">🔍</div>
+              <span class="status-badge status-implemented">Implemented</span>
+            </div>
+            <h3 class="feature-title">Multi-Provider Web Search</h3>
+            <p class="feature-desc">
+              Address bar search supporting Google (default), DuckDuckGo, Bing, and Brave Search via standard URL query encoding. No proxy servers, telemetry, or query interception.
+            </p>
+            <code>SearchEngine.generateUrl()</code>
+          </div>
+
+          <!-- Implemented: Multi-Tab Navigation -->
+          <div class="feature-card">
+            <div class="feature-card-header">
+              <div class="feature-icon">📑</div>
+              <span class="status-badge status-implemented">Implemented</span>
+            </div>
+            <h3 class="feature-title">Multi-Tab Browsing</h3>
+            <p class="feature-desc">
+              Create, switch, and close isolated tabs. Each tab preserves independent navigation history, document title, loading progress, and responsive viewport sizing.
+            </p>
+            <code>BrowserTabController</code>
+          </div>
+
+          <!-- Implemented: Local SQLite Persistence -->
+          <div class="feature-card">
+            <div class="feature-card-header">
+              <div class="feature-icon">💾</div>
+              <span class="status-badge status-implemented">Implemented</span>
+            </div>
+            <h3 class="feature-title">Local-First Persistence</h3>
+            <p class="feature-desc">
+              Bookmarks, browsing history, and research notes are stored directly on your machine in an offline SQLite database. No mandatory user accounts or cloud servers.
+            </p>
+            <code>SqlitePersistenceRepository</code>
+          </div>
+
+          <!-- Implemented: Private Browsing -->
+          <div class="feature-card">
+            <div class="feature-card-header">
+              <div class="feature-icon">🛡️</div>
+              <span class="status-badge status-implemented">Implemented</span>
+            </div>
+            <h3 class="feature-title">Private / Incognito Tabs</h3>
+            <p class="feature-desc">
+              Disables WebKit disk caching and DOM storage. Visits made inside private tabs are never committed to your local browsing history database.
+            </p>
+            <code>incognito: isPrivate</code>
+          </div>
+
+          <!-- Implemented: Mobile-First iOS & Desktop -->
+          <div class="feature-card">
+            <div class="feature-card-header">
+              <div class="feature-icon">📱</div>
+              <span class="status-badge status-implemented">Implemented</span>
+            </div>
+            <h3 class="feature-title">Adaptive Mobile & Desktop UI</h3>
+            <p class="feature-desc">
+              Responsive form factors with an ergonomic bottom navigation toolbar, tab card switcher, and native edge-swipe gesture navigation on iOS phones.
+            </p>
+            <code>shortestSide &lt; 600</code>
+          </div>
+
+          <!-- Experimental: Session Restoration -->
+          <div class="feature-card">
+            <div class="feature-card-header">
+              <div class="feature-icon">⚡</div>
+              <span class="status-badge status-experimental">Experimental</span>
+            </div>
+            <h3 class="feature-title">Session State Restoration</h3>
+            <p class="feature-desc">
+              Automated session checkpointing via app lifecycle observers (`paused`, `inactive`) to restore open tabs and URLs across application relaunches.
+            </p>
+            <code>WidgetsBindingObserver</code>
+          </div>
+
+          <!-- In Development: AI Gateway Interface -->
+          <div class="feature-card">
+            <div class="feature-card-header">
+              <div class="feature-icon">🧠</div>
+              <span class="status-badge status-in-development">In Development</span>
+            </div>
+            <h3 class="feature-title">Provider-Agnostic AI Gateway</h3>
+            <p class="feature-desc">
+              A unified gateway for local and remote models with strict opt-in consent. Prohibits silent cloud fallback when local inference is configured.
+            </p>
+            <code>AIGatewayContract</code>
+          </div>
+
+          <!-- Planned: Encrypted .tea Vaults -->
+          <div class="feature-card">
+            <div class="feature-card-header">
+              <div class="feature-icon">🔒</div>
+              <span class="status-badge status-planned">Planned</span>
+            </div>
+            <h3 class="feature-title">Encrypted .tea Vaults</h3>
+            <p class="feature-desc">
+              Encrypted-at-rest container format for personal notes and credentials. The threat model is documented in our specifications; implementation is in progress.
+            </p>
+            <code>docs/threat_model_tea.md</code>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Privacy Principles Section -->
+    <section class="section">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-tag">Privacy & Security</span>
+          <h2 class="section-title">Clear Privacy Principles</h2>
+          <p class="section-subtitle">
+            Privacy is an architectural requirement, not marketing rhetoric. Here is exactly what HotTea does and does not do.
+          </p>
+        </div>
+
+        <div class="privacy-grid">
+          <div class="privacy-card">
+            <h3 class="privacy-card-title">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--status-ready);"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+              Zero First-Party Telemetry
+            </h3>
+            <p>HotTea contains zero tracking scripts, usage telemetry, ad networks, or background analytics beacons. Your browsing patterns remain on your device.</p>
+          </div>
+
+          <div class="privacy-card">
+            <h3 class="privacy-card-title">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--status-ready);"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 14"></polyline></svg>
+              Local-First Offline Storage
+            </h3>
+            <p>Bookmarks, notes, history, and workspace configurations are written to a local SQLite database (`$HOME/Documents` or sandbox container).</p>
+          </div>
+
+          <div class="privacy-card">
+            <h3 class="privacy-card-title">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--status-ready);"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+              Explicit Network Transparency
+            </h3>
+            <p>Search queries are sent directly to your chosen provider (Google, DuckDuckGo, Bing, Brave). We do not route search traffic through proprietary proxy servers.</p>
+          </div>
+        </div>
+
+        <div class="callout-box">
+          <h4 style="font-size:1rem; margin-bottom:8px; color:var(--text-primary);">Important Real-World Disclaimer</h4>
+          <p>
+            HotTea does not make you anonymous on the internet. External websites and search providers still observe your public IP address, TLS connection metadata, and search queries as they do in any web browser. For anonymous network routing, consider dedicated anonymity tools such as the Tor Browser.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Cross-Platform Status -->
+    <section class="section section-alt">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-tag">Supported Targets</span>
+          <h2 class="section-title">Cross-Platform Availability</h2>
+          <p class="section-subtitle">
+            Our platform statuses are based on verified builds and running test suites, not theoretical framework compatibility.
+          </p>
+        </div>
+
+        <div class="platform-grid">
+          <!-- macOS -->
+          <div class="platform-card">
+            <div class="platform-icon">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.62-.75 1.04-1.8 0.92-2.87-.9.04-2 0.6-2.65 1.35-.58.65-1.08 1.73-.95 2.76 1 .08 2.05-.49 2.68-1.24z"/>
+              </svg>
+            </div>
+            <h3 class="platform-name">macOS</h3>
+            <span class="platform-target">WebKit Desktop Engine</span>
+            <span class="status-badge status-implemented">Available</span>
+          </div>
+
+          <!-- iOS -->
+          <div class="platform-card">
+            <div class="platform-icon">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+                <line x1="12" y1="18" x2="12.01" y2="18"></line>
+              </svg>
+            </div>
+            <h3 class="platform-name">iOS</h3>
+            <span class="platform-target">Mobile WebKit + Gestures</span>
+            <span class="status-badge status-implemented">Available</span>
+          </div>
+
+          <!-- Web -->
+          <div class="platform-card">
+            <div class="platform-icon">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="2" y1="12" x2="22" y2="12"></line>
+                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+              </svg>
+            </div>
+            <h3 class="platform-name">Web</h3>
+            <span class="platform-target">Flutter Web + Fallback</span>
+            <span class="status-badge status-experimental">Preview</span>
+          </div>
+
+          <!-- Android -->
+          <div class="platform-card">
+            <div class="platform-icon">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M17.523 15.3414c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.551 0 .9992.4482.9992.9993.0001.5511-.4482.9997-.9992.9997m-11.046 0c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4482.9993.9993 0 .5511-.4482.9997-.9993.9997m11.4045-6.02l1.9973-3.4592a.416.416 0 00-.1521-.5676.416.416 0 00-.5676.1521l-2.0223 3.503C15.5902 8.411 13.8533 8.0818 12 8.0818s-3.5902.3292-5.1368.8679L4.8409 5.4467a.4161.4161 0 00-.5677-.1521.4157.4157 0 00-.1521.5676l1.9973 3.4592C2.6889 11.1867.3432 14.6589 0 18.761h24c-.3432-4.1021-2.6889-7.5743-6.1185-9.4396"/>
+              </svg>
+            </div>
+            <h3 class="platform-name">Android</h3>
+            <span class="platform-target">Android WebView Engine</span>
+            <span class="status-badge status-in-development">In Dev</span>
+          </div>
+
+          <!-- Windows -->
+          <div class="platform-card">
+            <div class="platform-icon">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.949-1.801"/>
+              </svg>
+            </div>
+            <h3 class="platform-name">Windows</h3>
+            <span class="platform-target">WebView2 Bindings</span>
+            <span class="status-badge status-in-development">In Dev</span>
+          </div>
+
+          <!-- Linux -->
+          <div class="platform-card">
+            <div class="platform-icon">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                <line x1="8" y1="21" x2="16" y2="21"></line>
+                <line x1="12" y1="17" x2="12" y2="21"></line>
+              </svg>
+            </div>
+            <h3 class="platform-name">Linux</h3>
+            <span class="platform-target">WebKitGTK Integration</span>
+            <span class="status-badge status-in-development">In Dev</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Architecture Section -->
+    <section class="section">
+      <div class="container container-narrow">
+        <div class="section-header">
+          <span class="section-tag">System Design</span>
+          <h2 class="section-title">How HotTea Is Structured</h2>
+          <p class="section-subtitle">
+            A modular layer separation ensures that browsing, user interface, persistence, and external services operate under clear contracts.
+          </p>
+        </div>
+
+        <div class="arch-diagram">
+          <div class="arch-layer">
+            <div class="arch-layer-label">User Interface Layer (Flutter / Dart)</div>
+            <div class="arch-components">
+              <div class="arch-node">
+                Address Bar &amp; Engine Selector
+                <span>Search URL formatting</span>
+              </div>
+              <div class="arch-node">
+                Tab Manager &amp; Cards
+                <span>Multi-tab state</span>
+              </div>
+              <div class="arch-node">
+                Research Sidebar
+                <span>Offline notes &amp; clipping</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="arch-layer">
+            <div class="arch-layer-label">Engine Abstraction Layer</div>
+            <div class="arch-components">
+              <div class="arch-node">
+                InAppBrowserEngine
+                <span>WebKit (macOS, iOS)</span>
+              </div>
+              <div class="arch-node">
+                WebFallbackEngine
+                <span>Popup window fallback</span>
+              </div>
+              <div class="arch-node">
+                BrowserEngineFactory
+                <span>Platform resolution</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="arch-layer" style="margin-bottom:0;">
+            <div class="arch-layer-label">Local Persistence Layer</div>
+            <div class="arch-components">
+              <div class="arch-node">
+                SQLite Engine
+                <span>Bookmarks &amp; history</span>
+              </div>
+              <div class="arch-node">
+                Download Manager
+                <span>Sandboxed file storage</span>
+              </div>
+              <div class="arch-node">
+                Session Restorer
+                <span>Crash-safe tab state</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Open Source Section -->
+    <section class="section section-alt">
+      <div class="container container-narrow" style="text-align: center;">
+        <span class="section-tag">Open Source</span>
+        <h2 class="section-title">Built in the Open under Apache 2.0</h2>
+        <p class="section-subtitle" style="margin-bottom: 32px;">
+          HotTea is free, transparent, and welcomes developers, privacy researchers, and designers.
+        </p>
+
+        <div class="terminal-block" style="text-align: left;">
+          <div class="terminal-header">
+            <span>Terminal</span>
+            <button class="copy-btn" data-clipboard="git clone https://github.com/Shomay12/hottea.git && cd hottea && flutter pub get && flutter test">Copy</button>
+          </div>
+          <div class="terminal-body">
+            <div class="terminal-line">
+              <span class="terminal-prompt">$</span>
+              <span>git clone https://github.com/Shomay12/hottea.git</span>
+            </div>
+            <div class="terminal-line">
+              <span class="terminal-prompt">$</span>
+              <span>cd hottea &amp;&amp; flutter pub get</span>
+            </div>
+            <div class="terminal-line">
+              <span class="terminal-prompt">$</span>
+              <span>flutter test</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: 24px;">
+          <a href="https://github.com/Shomay12/hottea" class="btn btn-primary" target="_blank" rel="noopener">
+            View Repository
+          </a>
+          <a href="https://github.com/Shomay12/hottea/issues" class="btn btn-secondary" target="_blank" rel="noopener">
+            Report an Issue
+          </a>
+          <a href="docs.html" class="btn btn-secondary">
+            Read Documentation
+          </a>
+        </div>
+      </div>
+    <!-- Contributors & Community Section -->
+    <section id="contributors" class="section">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-tag">Team &amp; Community</span>
+          <h2 class="section-title">Contributors</h2>
+          <p class="section-subtitle">
+            HotTea is created and maintained by Shomayyy12 alongside the open-source community.
+          </p>
+        </div>
+
+        <div class="contributors-grid">
+          <!-- Creator & Lead Maintainer Card -->
+          <a href="https://github.com/Shomay12" target="_blank" rel="noopener" class="contributor-card" style="border-color: var(--accent-primary); box-shadow: 0 0 15px var(--accent-subtle);">
+            <img src="https://avatars.githubusercontent.com/u/200135348?v=4" alt="Shomayyy12" class="contributor-avatar">
+            <div class="contributor-info">
+              <span class="contributor-name">Shomayyy12</span>
+              <span class="contributor-role">Creator &amp; Lead Maintainer</span>
+              <span class="contributor-handle">@Shomay12 · Project Founder</span>
+            </div>
+          </a>
+
+          <!-- Dynamic GitHub Contributors Slot -->
+          <div id="dynamic-contributors" style="display:contents;"></div>
+
+          <!-- Join the Project Card -->
+          <a href="docs.html#contributing" class="contributor-cta-card">
+            <div class="contributor-cta-icon">+</div>
+            <div class="contributor-info">
+              <span class="contributor-name">Become a Contributor</span>
+              <span class="contributor-role">Open Source</span>
+              <span class="contributor-handle">View Contributing Guide &rarr;</span>
+            </div>
+          </a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Site Footer -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="index.html" class="brand-link">
+            <svg class="brand-logo-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 8h1a4 4 0 0 1 0 8h-1"></path>
+              <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path>
+              <line x1="6" y1="1" x2="6" y2="4"></line>
+              <line x1="10" y1="1" x2="10" y2="4"></line>
+              <line x1="14" y1="1" x2="14" y2="4"></line>
+            </svg>
+            <span>HotTea</span>
+          </a>
+          <p>
+            An open-source, privacy-first AI browser and research workspace built with Flutter and Dart.
+          </p>
+        </div>
+
+        <div>
+          <h4 class="footer-heading">Project</h4>
+          <ul class="footer-links">
+            <li><a href="downloads.html">Downloads</a></li>
+            <li><a href="docs.html">Documentation</a></li>
+            <li><a href="about.html">About &amp; Mission</a></li>
+            <li><a href="privacy.html">Privacy Model</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <h4 class="footer-heading">Community</h4>
+          <ul class="footer-links">
+            <li><a href="https://github.com/Shomay12/hottea" target="_blank" rel="noopener">GitHub</a></li>
+            <li><a href="#contributors">Contributors</a></li>
+            <li><a href="https://github.com/Shomay12/hottea/issues" target="_blank" rel="noopener">Issue Tracker</a></li>
+            <li><a href="docs.html#contributing">Contributing</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <h4 class="footer-heading">License</h4>
+          <ul class="footer-links">
+            <li><a href="https://github.com/Shomay12/hottea/blob/main/LICENSE" target="_blank" rel="noopener">Apache License 2.0</a></li>
+            <li><a href="privacy.html">Security Policy</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <span>&copy; 2026 HotTea. Created by Shomayyy12 and Open Source Contributors. Licensed under Apache 2.0.</span>
+        <span>Version: Alpha Preview (Source v0.1.0)</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="assets/js/main.js"></script>
+</body>
+</html>

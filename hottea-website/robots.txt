@@ -1,0 +1,5 @@
+# robots.txt for HotTea Official Website
+User-agent: *
+Allow: /
+
+Sitemap: https://shomay12.github.io/hottea/sitemap.xml

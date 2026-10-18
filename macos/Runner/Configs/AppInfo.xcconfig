@@ -12,3 +12,6 @@ PRODUCT_BUNDLE_IDENTIFIER = org.hottea.hottea
 
 // The copyright displayed in application information
 PRODUCT_COPYRIGHT = Copyright © 2026 org.hottea. All rights reserved.
+
+// Strip extended attribute detritus (such as com.apple.FinderInfo) during code signing
+OTHER_CODE_SIGN_FLAGS = --strip-disallowed-xattrs

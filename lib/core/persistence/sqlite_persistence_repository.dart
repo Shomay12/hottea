@@ -297,4 +297,33 @@ class SqlitePersistenceRepository implements LocalPersistenceRepository {
       whereArgs: [id],
     );
   }
+
+  // =========================================================================
+  // Settings
+  // =========================================================================
+
+  @override
+  Future<String?> getSetting(String key) async {
+    final rows = await db.query(
+      'settings',
+      columns: ['value'],
+      where: 'key = ?',
+      whereArgs: [key],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    return rows.first['value'] as String?;
+  }
+
+  @override
+  Future<void> setSetting(String key, String value) async {
+    await db.insert(
+      'settings',
+      {
+        'key': key,
+        'value': value,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
 }

@@ -33,6 +33,36 @@ HotTea reimagines web research by uniting a native web browser with a local-firs
 
 ---
 
+## 🌐 Browser Features & Workspace Capabilities
+
+* **Multi-Engine Web Search**: Direct address bar search via Google (default), DuckDuckGo, Bing, or Brave Search without telemetry or proxy intermediaries.
+* **Multi-Tab Architecture**: Open, switch, and close isolated browser tabs with independent history, title, and loading state.
+* **Private / Incognito Mode**: Isolated session tabs with disabled caching; visits and cookies are never committed to disk.
+* **Session Restoration**: Option to automatically save and restore open tabs across application launches.
+* **Downloads Manager**: Dedicated downloads pane with real-time progress, size metrics, cancellation, and retry.
+* **Find in Page & Zoom**: In-page search highlights (`Cmd+F` / `Ctrl+F`) and smooth zoom scaling (`Cmd+=` / `Cmd+-`).
+* **Interactive Navigation Error Recovery**: In-viewport error diagnostics with retry and fallback search triggers.
+* **Local Research Workspace**: Side pane featuring offline Markdown notes with web clipping, bookmarked resources with filtering and "Open in New Tab", and full browsing history search.
+
+### ⌨️ Desktop Keyboard Shortcuts
+
+| Shortcut (macOS) | Shortcut (Windows/Linux) | Action |
+| :--- | :--- | :--- |
+| `Cmd + T` | `Ctrl + T` | Open new tab |
+| `Cmd + Shift + N` | `Ctrl + Shift + N` | Open new private tab |
+| `Cmd + W` | `Ctrl + W` | Close active tab |
+| `Cmd + R` | `Ctrl + R` | Reload active page |
+| `Cmd + L` | `Ctrl + L` | Focus address bar & select URL |
+| `Cmd + F` | `Ctrl + F` | Open Find in Page bar |
+| `Cmd + D` | `Ctrl + D` | Bookmark active page |
+| `Cmd + [` | `Ctrl + [` | Navigate back |
+| `Cmd + ]` | `Ctrl + ]` | Navigate forward |
+| `Cmd + =` | `Ctrl + =` | Zoom in |
+| `Cmd + -` | `Ctrl + -` | Zoom out |
+| `Cmd + 0` | `Ctrl + 0` | Reset zoom to 100% |
+
+---
+
 ## 🏗️ Architecture & Documentation
 
 * **[ARCHITECTURE.md](file:///Users/quaxiom/Documents/DEVLOPMENT/Projects/HotTea/ARCHITECTURE.md)**: System design, high-level diagrams, invariants, and directory structure.

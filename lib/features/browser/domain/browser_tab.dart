@@ -46,12 +46,22 @@ class BrowserTab {
   bool get canGoBack => engine.canGoBack;
   bool get canGoForward => engine.canGoForward;
   BrowserNavigationError? get error => engine.currentError;
+  bool get isPrivate => engine.isPrivate;
+  double get zoomLevel => engine.zoomLevel;
 
   Future<void> loadUrl(Uri url) => engine.loadUrl(url);
   Future<void> goBack() => engine.goBack();
   Future<void> goForward() => engine.goForward();
   Future<void> reload() => engine.reload();
+  Future<void> stopLoading() => engine.stopLoading();
   void clearError() => engine.clearError();
+
+  Future<void> findInPage(String text, {bool forward = true}) => engine.findInPage(text, forward: forward);
+  Future<void> clearFindInPage() => engine.clearFindInPage();
+  Future<void> zoomIn() => engine.zoomIn();
+  Future<void> zoomOut() => engine.zoomOut();
+  Future<void> resetZoom() => engine.resetZoom();
+  Future<void> clearCache() => engine.clearCache();
 
   Future<void> dispose() async {
     await _urlSub?.cancel();

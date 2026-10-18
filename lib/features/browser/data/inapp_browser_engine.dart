@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import '../domain/browser_engine.dart';
+import 'download_manager.dart';
 
 /// Real browser engine integration backed by [InAppWebView].
 ///
@@ -24,6 +25,7 @@ class InAppBrowserEngine implements BrowserEngine {
   final _errorController = StreamController<BrowserNavigationError?>.broadcast();
 
   Uri? _currentUrl;
+  Uri? _pendingUrl;
   String _currentTitle = '';
   double _progress = 0.0;
   bool _isLoading = false;
@@ -35,11 +37,15 @@ class InAppBrowserEngine implements BrowserEngine {
   final Uri _initialUrl;
 
   @override
+  final bool isPrivate;
+
+  @override
   final BrowserPlatformCapabilities capabilities;
 
   InAppBrowserEngine({
     Uri? initialUrl,
     BrowserPlatformCapabilities? customCapabilities,
+    this.isPrivate = false,
   })  : _initialUrl = initialUrl ?? Uri.parse('https://docs.flutter.dev'),
         capabilities = customCapabilities ?? _resolvePlatformCapabilities() {
     _currentUrl = _initialUrl;
@@ -100,20 +106,23 @@ class InAppBrowserEngine implements BrowserEngine {
     _loadingController.add(true);
     _progressController.add(0.1);
 
-    try {
-      if (_webViewController != null) {
+    if (_webViewController != null) {
+      _pendingUrl = null;
+      try {
         await _webViewController!.loadUrl(
-          urlRequest: URLRequest(url: WebUri(url.toString())),
+          urlRequest: URLRequest(url: WebUri.uri(url)),
         );
+      } catch (e) {
+        _currentError = BrowserNavigationError(
+          failedUrl: url,
+          message: 'Failed to initiate navigation: $e',
+        );
+        _errorController.add(_currentError);
+        _isLoading = false;
+        _loadingController.add(false);
       }
-    } catch (e) {
-      _currentError = BrowserNavigationError(
-        failedUrl: url,
-        message: 'Failed to initiate navigation: $e',
-      );
-      _errorController.add(_currentError);
-      _isLoading = false;
-      _loadingController.add(false);
+    } else {
+      _pendingUrl = url;
     }
   }
 
@@ -144,6 +153,71 @@ class InAppBrowserEngine implements BrowserEngine {
       await _webViewController!.reload();
     } else if (_currentUrl != null) {
       await loadUrl(_currentUrl!);
+    }
+  }
+
+  @override
+  Future<void> stopLoading() async {
+    _isLoading = false;
+    _loadingController.add(false);
+    if (_webViewController != null) {
+      await _webViewController!.stopLoading();
+    }
+  }
+
+  @override
+  Future<void> findInPage(String text, {bool forward = true}) async {
+    if (_webViewController != null && text.trim().isNotEmpty) {
+      final sanitized = text.replaceAll('"', '\\"');
+      final backwards = !forward;
+      await _webViewController!.evaluateJavascript(
+        source: 'window.find("$sanitized", false, $backwards, true, false, true, false);',
+      );
+    }
+  }
+
+  @override
+  Future<void> clearFindInPage() async {
+    if (_webViewController != null) {
+      await _webViewController!.evaluateJavascript(
+        source: 'if (window.getSelection) { window.getSelection().removeAllRanges(); }',
+      );
+    }
+  }
+
+  double _zoomLevel = 1.0;
+
+  @override
+  double get zoomLevel => _zoomLevel;
+
+  @override
+  Future<void> zoomIn() async {
+    _zoomLevel = (_zoomLevel * 1.25).clamp(0.25, 5.0);
+    if (_webViewController != null) {
+      await _webViewController!.zoomBy(zoomFactor: 1.25);
+    }
+  }
+
+  @override
+  Future<void> zoomOut() async {
+    _zoomLevel = (_zoomLevel * 0.8).clamp(0.25, 5.0);
+    if (_webViewController != null) {
+      await _webViewController!.zoomBy(zoomFactor: 0.8);
+    }
+  }
+
+  @override
+  Future<void> resetZoom() async {
+    _zoomLevel = 1.0;
+    if (_webViewController != null) {
+      await _webViewController!.zoomBy(zoomFactor: 1.0);
+    }
+  }
+
+  @override
+  Future<void> clearCache() async {
+    if (_webViewController != null) {
+      await InAppWebViewController.clearAllCache();
     }
   }
 
@@ -190,18 +264,49 @@ class InAppBrowserEngine implements BrowserEngine {
   @override
   Widget buildWidget(BuildContext context) {
     return InAppWebView(
-      key: ValueKey('inapp_webview_${_initialUrl.toString()}'),
+      key: ObjectKey(this),
       initialUrlRequest: URLRequest(
-        url: WebUri(_currentUrl?.toString() ?? _initialUrl.toString()),
+        url: WebUri.uri(_currentUrl ?? _initialUrl),
       ),
       initialSettings: InAppWebViewSettings(
         isInspectable: false,
         javaScriptEnabled: true,
         supportZoom: true,
         transparentBackground: false,
+        incognito: isPrivate,
+        cacheEnabled: !isPrivate,
+        clearCache: isPrivate,
+        clearSessionCache: isPrivate,
+        useOnDownloadStart: true,
+        allowsBackForwardNavigationGestures: true,
+        allowsInlineMediaPlayback: true,
+        isFraudulentWebsiteWarningEnabled: true,
       ),
-      onWebViewCreated: (controller) {
+      onWebViewCreated: (controller) async {
         _webViewController = controller;
+        if (_pendingUrl != null) {
+          final target = _pendingUrl!;
+          _pendingUrl = null;
+          try {
+            await controller.loadUrl(
+              urlRequest: URLRequest(url: WebUri.uri(target)),
+            );
+          } catch (e) {
+            _currentError = BrowserNavigationError(
+              failedUrl: target,
+              message: 'Failed to load pending URL: $e',
+            );
+            _errorController.add(_currentError);
+          }
+        }
+      },
+      onDownloadStartRequest: (controller, downloadStartRequest) {
+        DownloadManager.instance.handleDownloadRequest(
+          url: downloadStartRequest.url.uriValue,
+          suggestedFilename: downloadStartRequest.suggestedFilename,
+          contentLength: downloadStartRequest.contentLength,
+          mimeType: downloadStartRequest.mimeType,
+        );
       },
       onLoadStart: (controller, url) {
         clearError();

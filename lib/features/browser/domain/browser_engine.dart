@@ -79,6 +79,9 @@ abstract class BrowserEngine {
   /// Reloads the current page.
   Future<void> reload();
 
+  /// Stops loading the current page.
+  Future<void> stopLoading();
+
   /// Clears any active navigation error.
   void clearError();
 
@@ -88,6 +91,24 @@ abstract class BrowserEngine {
 
   /// Evaluates JavaScript within the page context.
   Future<dynamic> evaluateJavascript(String script);
+
+  /// Searches for [text] within the active page.
+  Future<void> findInPage(String text, {bool forward = true});
+
+  /// Clears active find-in-page highlights.
+  Future<void> clearFindInPage();
+
+  /// Zooms in by the platform increment.
+  Future<void> zoomIn();
+
+  /// Zooms out by the platform increment.
+  Future<void> zoomOut();
+
+  /// Resets page zoom to 100%.
+  Future<void> resetZoom();
+
+  /// Clears browser cache, web storage, and session cookies for this engine.
+  Future<void> clearCache();
 
   /// Builds the widget to display inside Flutter.
   Widget buildWidget(BuildContext context);
@@ -115,6 +136,12 @@ abstract class BrowserEngine {
 
   /// Active platform capabilities for this engine.
   BrowserPlatformCapabilities get capabilities;
+
+  /// Whether this engine instance operates in isolated private/incognito mode.
+  bool get isPrivate;
+
+  /// Current zoom level (1.0 = 100%).
+  double get zoomLevel;
 }
 
 /// A safe, self-contained reference/mock browser engine used for testing,
@@ -154,6 +181,7 @@ class MockBrowserEngine implements BrowserEngine {
       license: 'Apache-2.0',
       notes: 'Safe local mock engine for testing and headless validation.',
     ),
+    this.isPrivate = false,
   });
 
   @override
@@ -238,6 +266,44 @@ class MockBrowserEngine implements BrowserEngine {
       await loadUrl(_currentUrl!);
     }
   }
+
+  @override
+  Future<void> stopLoading() async {
+    _isLoading = false;
+    _loadingController.add(false);
+  }
+
+  @override
+  Future<void> findInPage(String text, {bool forward = true}) async {}
+
+  @override
+  Future<void> clearFindInPage() async {}
+
+  double _zoomLevel = 1.0;
+
+  @override
+  double get zoomLevel => _zoomLevel;
+
+  @override
+  Future<void> zoomIn() async {
+    _zoomLevel = (_zoomLevel * 1.25).clamp(0.25, 5.0);
+  }
+
+  @override
+  Future<void> zoomOut() async {
+    _zoomLevel = (_zoomLevel * 0.8).clamp(0.25, 5.0);
+  }
+
+  @override
+  Future<void> resetZoom() async {
+    _zoomLevel = 1.0;
+  }
+
+  @override
+  Future<void> clearCache() async {}
+
+  @override
+  final bool isPrivate;
 
   @override
   void clearError() {

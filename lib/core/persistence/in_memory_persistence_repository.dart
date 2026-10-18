@@ -6,6 +6,7 @@ class InMemoryPersistenceRepository implements LocalPersistenceRepository {
   final Map<int, BookmarkEntity> _bookmarks = {};
   final List<HistoryEntry> _history = [];
   final Map<int, ResearchNote> _notes = {};
+  final Map<String, String> _settings = {};
 
   int _nextBookmarkId = 1;
   int _nextHistoryId = 1;
@@ -157,5 +158,15 @@ class InMemoryPersistenceRepository implements LocalPersistenceRepository {
   @override
   Future<void> deleteNote(int id) async {
     _notes.remove(id);
+  }
+
+  @override
+  Future<String?> getSetting(String key) async {
+    return _settings[key];
+  }
+
+  @override
+  Future<void> setSetting(String key, String value) async {
+    _settings[key] = value;
   }
 }

@@ -7,7 +7,7 @@ import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart';
 /// and safe parameterized transactions across Web, Desktop, and Mobile.
 class HotTeaDatabaseHelper {
   static const String databaseName = 'hottea_local_workspace.db';
-  static const int databaseVersion = 1;
+  static const int databaseVersion = 2;
 
   static Database? _database;
   static bool _initializedPlatform = false;
@@ -98,13 +98,25 @@ class HotTeaDatabaseHelper {
     ''');
     batch.execute('CREATE INDEX idx_notes_updated ON notes (updated_at DESC)');
 
+    // 4. Settings Table
+    batch.execute('''
+      CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      )
+    ''');
+
     await batch.commit(noResult: true);
   }
 
   static Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    // Schema migration ladder for future versions
     if (oldVersion < 2) {
-      // Future migrations go here
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS settings (
+          key TEXT PRIMARY KEY,
+          value TEXT NOT NULL
+        )
+      ''');
     }
   }
 

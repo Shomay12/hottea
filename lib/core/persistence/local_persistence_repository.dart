@@ -232,4 +232,11 @@ abstract class LocalPersistenceRepository {
 
   /// Deletes a research note by ID.
   Future<void> deleteNote(int id);
+
+  // --- Settings / Configuration Operations ---
+  /// Retrieves a persistent configuration string value by [key], or null if unset.
+  Future<String?> getSetting(String key);
+
+  /// Sets or updates a persistent configuration [value] for [key].
+  Future<void> setSetting(String key, String value);
 }

@@ -14,14 +14,15 @@ class BrowserEngineFactory {
   static BrowserEngine createEngine({
     Uri? initialUrl,
     bool forceMock = false,
+    bool isPrivate = false,
   }) {
     if (forceMock || _isTestEnvironment()) {
-      final engine = MockBrowserEngine();
+      final engine = MockBrowserEngine(isPrivate: isPrivate);
       engine.initialize(initialUrl: initialUrl);
       return engine;
     }
 
-    final engine = InAppBrowserEngine(initialUrl: initialUrl);
+    final engine = InAppBrowserEngine(initialUrl: initialUrl, isPrivate: isPrivate);
     engine.initialize(initialUrl: initialUrl);
     return engine;
   }

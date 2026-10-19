@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import 'core/config/app_privacy_policy.dart';
 import 'core/persistence/local_persistence_repository.dart';
 import 'core/persistence/sqlite_persistence_repository.dart';
+import 'features/ai/data/ai_gateway_impl.dart';
+import 'features/ai/domain/ai_gateway.dart';
 import 'features/browser/data/browser_engine_factory.dart';
 import 'features/browser/data/download_manager.dart';
 import 'features/browser/domain/address_bar_parser.dart';
@@ -11,6 +13,7 @@ import 'features/browser/domain/browser_engine.dart';
 import 'features/browser/domain/browser_tab.dart';
 import 'features/browser/domain/download_item.dart';
 import 'features/browser/domain/search_engine.dart';
+import 'features/research/data/webpage_extraction_service.dart';
 import 'core/utils/external_launcher.dart';
 
 void main() {
@@ -21,11 +24,13 @@ void main() {
 class HotTeaApp extends StatelessWidget {
   final LocalPersistenceRepository? persistenceRepository;
   final bool forceMockBrowser;
+  final AiGateway? aiGateway;
 
   const HotTeaApp({
     super.key,
     this.persistenceRepository,
     this.forceMockBrowser = false,
+    this.aiGateway,
   });
 
   @override
@@ -46,6 +51,7 @@ class HotTeaApp extends StatelessWidget {
       home: HotTeaWorkspaceScreen(
         persistenceRepository: persistenceRepository,
         forceMockBrowser: forceMockBrowser,
+        aiGateway: aiGateway,
       ),
     );
   }
@@ -54,11 +60,13 @@ class HotTeaApp extends StatelessWidget {
 class HotTeaWorkspaceScreen extends StatefulWidget {
   final bool forceMockBrowser;
   final LocalPersistenceRepository? persistenceRepository;
+  final AiGateway? aiGateway;
 
   const HotTeaWorkspaceScreen({
     super.key,
     this.forceMockBrowser = false,
     this.persistenceRepository,
+    this.aiGateway,
   });
 
   @override
@@ -108,14 +116,38 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
   final TextEditingController _noteTitleController = TextEditingController();
   final TextEditingController _noteContentController = TextEditingController();
 
+  // Research Workspace & Evidence Clipping State
+  final WebpageExtractionService _extractionService = WebpageExtractionService();
+  List<SourceEntity> _sources = [];
+  List<EvidenceEntity> _evidenceList = [];
+  String _activeResearchSubTab = 'evidence'; // 'evidence', 'sources', 'notes'
+  final TextEditingController _evidenceFilterController = TextEditingController();
+  String _evidenceFilterQuery = '';
+  String? _selectedEvidenceTopic;
+  final Set<int> _selectedEvidenceIdsForAi = {};
+  bool _isExtractingPage = false;
+
   // Session Restoration State
   bool _restoreSessionEnabled = false;
+
+  // AI Gateway State
+  late final AiGateway _aiGateway;
+  final TextEditingController _aiPromptController = TextEditingController();
+  final TextEditingController _aiBaseUrlController = TextEditingController();
+  final TextEditingController _aiModelController = TextEditingController();
+  final TextEditingController _aiApiKeyController = TextEditingController();
+  bool _isAiExecuting = false;
+  AiResponse? _lastAiResponse;
+  String? _aiError;
+  final Set<int> _selectedNoteIdsForAi = {};
+  bool _isAiApiKeyObscured = true;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _persistenceRepo = widget.persistenceRepository ?? SqlitePersistenceRepository();
+    _aiGateway = widget.aiGateway ?? AiGatewayImpl();
     _initPersistenceAndLoad();
     _createNewTab(Uri.parse('https://docs.flutter.dev'));
   }
@@ -140,8 +172,11 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
       await _refreshBookmarks();
       await _refreshHistory();
       await _refreshNotes();
+      await _refreshSources();
+      await _refreshEvidence();
       await _loadSearchEngineSetting();
       await _loadSessionRestoreSetting();
+      await _loadAiSettings();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -149,6 +184,34 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
         );
       }
     }
+  }
+
+  Future<void> _loadAiSettings() async {
+    if (!_isRepoInitialized) return;
+    try {
+      final savedProvider = await _persistenceRepo.getSetting('ai_provider_id');
+      final savedBaseUrl = await _persistenceRepo.getSetting('ai_base_url');
+      final savedModel = await _persistenceRepo.getSetting('ai_model');
+      final savedApiKey = await _persistenceRepo.getSetting('ai_api_key');
+
+      if (savedProvider != null && savedProvider.isNotEmpty) {
+        _aiGateway.setActiveProvider(savedProvider);
+      }
+      final current = _aiGateway.activeConfig;
+      _aiGateway.updateProviderConfig(current.copyWith(
+        baseUrl: (savedBaseUrl != null && savedBaseUrl.isNotEmpty) ? savedBaseUrl : current.baseUrl,
+        model: (savedModel != null && savedModel.isNotEmpty) ? savedModel : current.model,
+        apiKey: (savedApiKey != null && savedApiKey.isNotEmpty) ? savedApiKey : current.apiKey,
+      ));
+
+      if (mounted) {
+        setState(() {
+          _aiBaseUrlController.text = _aiGateway.activeConfig.baseUrl;
+          _aiModelController.text = _aiGateway.activeConfig.model;
+          _aiApiKeyController.text = _aiGateway.activeConfig.apiKey;
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadSessionRestoreSetting() async {
@@ -253,6 +316,33 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
             _noteTitleController.clear();
             _noteContentController.clear();
           }
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _refreshSources() async {
+    if (!_isRepoInitialized) return;
+    try {
+      final items = await _persistenceRepo.getSources();
+      if (mounted) {
+        setState(() {
+          _sources = items;
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _refreshEvidence() async {
+    if (!_isRepoInitialized) return;
+    try {
+      final items = await _persistenceRepo.getEvidence(
+        topic: _selectedEvidenceTopic,
+        query: _evidenceFilterQuery.isNotEmpty ? _evidenceFilterQuery : null,
+      );
+      if (mounted) {
+        setState(() {
+          _evidenceList = items;
         });
       }
     } catch (_) {}
@@ -435,6 +525,10 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
     _historyFilterController.dispose();
     _noteTitleController.dispose();
     _noteContentController.dispose();
+    _aiPromptController.dispose();
+    _aiBaseUrlController.dispose();
+    _aiModelController.dispose();
+    _aiApiKeyController.dispose();
     _persistenceRepo.close();
     super.dispose();
   }
@@ -535,6 +629,598 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
         SnackBar(content: Text('Failed to clip note: $e')),
       );
     }
+  }
+
+  Future<void> _extractCurrentPageAndOpenClipModal() async {
+    final currentUrl = _activeTab.currentUrl;
+    if (currentUrl == null || (currentUrl.scheme == 'about' && currentUrl.path != 'blank')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please navigate to a webpage before clipping evidence.')),
+      );
+      return;
+    }
+
+    setState(() => _isExtractingPage = true);
+
+    SourceEntity? sourceToUse;
+    String? initialPassage;
+
+    try {
+      final result = await _extractionService.extractFromEngine(_activeTab.engine);
+      if (result.isSuccess && result.source != null) {
+        sourceToUse = await _persistenceRepo.saveSource(result.source!);
+        await _refreshSources();
+        initialPassage = result.activeSelection;
+      } else {
+        // Fallback: create base source from tab metadata
+        final fallbackSource = SourceEntity(
+          url: currentUrl,
+          title: _activeTab.currentTitle.isNotEmpty ? _activeTab.currentTitle : currentUrl.toString(),
+          capturedAt: DateTime.now(),
+        );
+        sourceToUse = await _persistenceRepo.saveSource(fallbackSource);
+        await _refreshSources();
+
+        if (mounted && result.errorMessage != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${result.errorMessage} You can still enter or paste a verbatim excerpt.'),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      final fallbackSource = SourceEntity(
+        url: currentUrl,
+        title: _activeTab.currentTitle.isNotEmpty ? _activeTab.currentTitle : currentUrl.toString(),
+        capturedAt: DateTime.now(),
+      );
+      sourceToUse = await _persistenceRepo.saveSource(fallbackSource);
+      await _refreshSources();
+    } finally {
+      if (mounted) {
+        setState(() => _isExtractingPage = false);
+      }
+    }
+
+    if (mounted) {
+      _showCaptureEvidenceModal(
+        initialSource: sourceToUse,
+        initialPassage: initialPassage,
+      );
+    }
+  }
+
+  void _showCaptureEvidenceModal({
+    required SourceEntity initialSource,
+    String? initialPassage,
+  }) {
+    final passageController = TextEditingController(text: initialPassage ?? '');
+    final headingController = TextEditingController();
+    final annotationController = TextEditingController();
+    final tagsController = TextEditingController();
+    final topicController = TextEditingController(text: _selectedEvidenceTopic ?? '');
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (dialogCtx, setDialogState) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF161922),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: const BorderSide(color: Colors.white12)),
+              title: Row(
+                children: [
+                  const Icon(Icons.content_cut_outlined, size: 20, color: Color(0xFFD48B47)),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Capture Evidence Passage',
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 18, color: Colors.white54),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              content: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 540, maxHeight: 600),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Source citation banner
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF101218),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.white10),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              initialSource.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              (initialSource.canonicalUrl ?? initialSource.url).toString(),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 11, color: Colors.blueAccent),
+                            ),
+                            if (initialSource.author != null || initialSource.publishedDate != null) ...[
+                              const SizedBox(height: 3),
+                              Text(
+                                '${initialSource.author != null ? 'Author: ${initialSource.author}  ' : ''}${initialSource.publishedDate != null ? 'Date: ${initialSource.publishedDate}' : ''}',
+                                style: const TextStyle(fontSize: 10, color: Colors.white54),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+
+                      // Passage text field
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Verbatim Passage Text *',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white70),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFD48B47).withAlpha(30),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Text(
+                              'Preserved verbatim',
+                              style: TextStyle(fontSize: 10, color: Color(0xFFD48B47), fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      TextField(
+                        controller: passageController,
+                        maxLines: 5,
+                        style: const TextStyle(fontSize: 12, height: 1.4, fontFamily: 'serif'),
+                        decoration: InputDecoration(
+                          hintText: 'Paste or enter exact excerpt from webpage...\nExample: "Zero default telemetry is guaranteed across all desktop and mobile targets."',
+                          hintStyle: const TextStyle(fontSize: 12, color: Colors.white30),
+                          filled: true,
+                          fillColor: const Color(0xFF101218),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)),
+                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFD48B47))),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Context heading selector / textfield
+                      if (initialSource.headings.isNotEmpty) ...[
+                        const Text('Context Section / Heading', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white70)),
+                        const SizedBox(height: 6),
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: initialSource.headings.take(6).map((h) {
+                              final isSelected = headingController.text == h;
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 6),
+                                child: ActionChip(
+                                  label: Text(h, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11)),
+                                  backgroundColor: isSelected ? const Color(0xFFD48B47).withAlpha(60) : const Color(0xFF101218),
+                                  side: BorderSide(color: isSelected ? const Color(0xFFD48B47) : Colors.white10),
+                                  onPressed: () {
+                                    setDialogState(() {
+                                      headingController.text = h;
+                                    });
+                                  },
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                      ],
+                      TextField(
+                        controller: headingController,
+                        style: const TextStyle(fontSize: 12),
+                        decoration: InputDecoration(
+                          hintText: 'Section / Context Heading (optional)',
+                          hintStyle: const TextStyle(fontSize: 12, color: Colors.white30),
+                          filled: true,
+                          fillColor: const Color(0xFF101218),
+                          isDense: true,
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // User Annotation field
+                      const Text('User Annotation / Notes', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white70)),
+                      const SizedBox(height: 6),
+                      TextField(
+                        controller: annotationController,
+                        maxLines: 2,
+                        style: const TextStyle(fontSize: 12),
+                        decoration: InputDecoration(
+                          hintText: 'Your thoughts, relevance, or analytical notes...',
+                          hintStyle: const TextStyle(fontSize: 12, color: Colors.white30),
+                          filled: true,
+                          fillColor: const Color(0xFF101218),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Tags and Topic in two columns
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('Tags (comma-separated)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white70)),
+                                const SizedBox(height: 4),
+                                TextField(
+                                  controller: tagsController,
+                                  style: const TextStyle(fontSize: 12),
+                                  decoration: InputDecoration(
+                                    hintText: 'e.g. privacy, security',
+                                    hintStyle: const TextStyle(fontSize: 11, color: Colors.white30),
+                                    filled: true,
+                                    fillColor: const Color(0xFF101218),
+                                    isDense: true,
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('Research Topic', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white70)),
+                                const SizedBox(height: 4),
+                                TextField(
+                                  controller: topicController,
+                                  style: const TextStyle(fontSize: 12),
+                                  decoration: InputDecoration(
+                                    hintText: 'e.g. Project HotTea',
+                                    hintStyle: const TextStyle(fontSize: 11, color: Colors.white30),
+                                    filled: true,
+                                    fillColor: const Color(0xFF101218),
+                                    isDense: true,
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cancel', style: TextStyle(color: Colors.white60)),
+                ),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.bookmark_added, size: 16),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFD48B47),
+                    foregroundColor: Colors.black,
+                  ),
+                  onPressed: () async {
+                    final passage = passageController.text.trim();
+                    if (passage.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Please enter or paste passage text to clip.')),
+                      );
+                      return;
+                    }
+
+                    final tags = tagsController.text
+                        .split(',')
+                        .map((t) => t.trim())
+                        .where((t) => t.isNotEmpty)
+                        .toList();
+
+                    final evidence = EvidenceEntity(
+                      sourceId: initialSource.id,
+                      sourceUrl: initialSource.canonicalUrl ?? initialSource.url,
+                      sourceTitle: initialSource.title,
+                      passage: passage,
+                      contextHeading: headingController.text.trim().isNotEmpty ? headingController.text.trim() : null,
+                      annotation: annotationController.text.trim().isNotEmpty ? annotationController.text.trim() : null,
+                      tags: tags,
+                      topic: topicController.text.trim().isNotEmpty ? topicController.text.trim() : null,
+                      capturedAt: DateTime.now(),
+                    );
+
+                    await _persistenceRepo.saveEvidence(evidence);
+                    await _refreshEvidence();
+                    if (!mounted || !ctx.mounted) return;
+                    Navigator.pop(ctx);
+
+                    setState(() {
+                      _isRightPaneVisible = true;
+                      _activeRightTab = 'notes';
+                      _activeResearchSubTab = 'evidence';
+                    });
+
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Evidence saved to Research Workspace.'),
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  },
+                  label: const Text('Save Evidence', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showEditEvidenceModal(EvidenceEntity evidence) {
+    final annotationController = TextEditingController(text: evidence.annotation ?? '');
+    final tagsController = TextEditingController(text: evidence.tags.join(', '));
+    final topicController = TextEditingController(text: evidence.topic ?? '');
+    final headingController = TextEditingController(text: evidence.contextHeading ?? '');
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF161922),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: const BorderSide(color: Colors.white12)),
+          title: const Text('Edit Evidence Annotation & Tags', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF101218),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: Colors.white10),
+                    ),
+                    child: Text(
+                      '"${evidence.passage}"',
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.white70),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text('Section / Heading', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white70)),
+                  const SizedBox(height: 4),
+                  TextField(
+                    controller: headingController,
+                    style: const TextStyle(fontSize: 12),
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: const Color(0xFF101218),
+                      isDense: true,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Text('Annotation', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white70)),
+                  const SizedBox(height: 4),
+                  TextField(
+                    controller: annotationController,
+                    maxLines: 2,
+                    style: const TextStyle(fontSize: 12),
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: const Color(0xFF101218),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Text('Tags (comma-separated)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white70)),
+                  const SizedBox(height: 4),
+                  TextField(
+                    controller: tagsController,
+                    style: const TextStyle(fontSize: 12),
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: const Color(0xFF101218),
+                      isDense: true,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Text('Research Topic', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white70)),
+                  const SizedBox(height: 4),
+                  TextField(
+                    controller: topicController,
+                    style: const TextStyle(fontSize: 12),
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: const Color(0xFF101218),
+                      isDense: true,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel', style: TextStyle(color: Colors.white60)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFD48B47),
+                foregroundColor: Colors.black,
+              ),
+              onPressed: () async {
+                final tags = tagsController.text
+                    .split(',')
+                    .map((t) => t.trim())
+                    .where((t) => t.isNotEmpty)
+                    .toList();
+
+                final updated = evidence.copyWith(
+                  contextHeading: headingController.text.trim().isNotEmpty ? headingController.text.trim() : null,
+                  annotation: annotationController.text.trim().isNotEmpty ? annotationController.text.trim() : null,
+                  tags: tags,
+                  topic: topicController.text.trim().isNotEmpty ? topicController.text.trim() : null,
+                );
+
+                await _persistenceRepo.updateEvidence(updated);
+                await _refreshEvidence();
+                if (!mounted || !ctx.mounted) return;
+                Navigator.pop(ctx);
+              },
+              child: const Text('Save Changes', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showSourceDetailsModal(SourceEntity source) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF161922),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: const BorderSide(color: Colors.white12)),
+          title: Row(
+            children: [
+              const Icon(Icons.source_outlined, color: Color(0xFFD48B47), size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Webpage Source Details', style: TextStyle(fontSize: 11, color: Color(0xFFD48B47))),
+                    Text(source.title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 560, maxHeight: 520),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  InkWell(
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      _activeTab.loadUrl(source.url);
+                    },
+                    child: Text(
+                      source.url.toString(),
+                      style: const TextStyle(fontSize: 11, color: Colors.blueAccent, decoration: TextDecoration.underline),
+                    ),
+                  ),
+                  if (source.canonicalUrl != null) ...[
+                    const SizedBox(height: 4),
+                    Text('Canonical URL: ${source.canonicalUrl}', style: const TextStyle(fontSize: 10, color: Colors.white54)),
+                  ],
+                  if (source.author != null || source.publishedDate != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      '${source.author != null ? 'Author: ${source.author} • ' : ''}${source.publishedDate != null ? 'Published: ${source.publishedDate}' : ''}',
+                      style: const TextStyle(fontSize: 11, color: Colors.white70),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  if (source.headings.isNotEmpty) ...[
+                    const Text('Page Headings', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white70)),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(color: const Color(0xFF101218), borderRadius: BorderRadius.circular(6)),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: source.headings.map((h) => Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 2),
+                          child: Text('• $h', style: const TextStyle(fontSize: 11, color: Colors.white70)),
+                        )).toList(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  if (source.extractedText != null && source.extractedText!.isNotEmpty) ...[
+                    const Text('Extracted Body Text Preview', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white70)),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(color: const Color(0xFF101218), borderRadius: BorderRadius.circular(6)),
+                      child: Text(
+                        source.extractedText!,
+                        maxLines: 8,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 11, height: 1.4, color: Colors.white70),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Close', style: TextStyle(color: Colors.white70)),
+            ),
+            TextButton(
+              onPressed: () async {
+                if (source.id != null) {
+                  await _persistenceRepo.deleteSource(source.id!);
+                  await _refreshSources();
+                  if (mounted && ctx.mounted) Navigator.pop(ctx);
+                }
+              },
+              child: const Text('Delete Source', style: TextStyle(color: Colors.redAccent)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFD48B47), foregroundColor: Colors.black),
+              onPressed: () {
+                Navigator.pop(ctx);
+                _showCaptureEvidenceModal(initialSource: source);
+              },
+              child: const Text('Clip from this Source', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   void _showPrivacyDisclosureDialog() {
@@ -638,6 +1324,24 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
                       },
                     ),
                     _buildActionChip(
+                      icon: Icons.content_cut_outlined,
+                      label: 'Clip Evidence',
+                      color: const Color(0xFFD48B47),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _extractCurrentPageAndOpenClipModal();
+                      },
+                    ),
+                    _buildActionChip(
+                      icon: Icons.source_outlined,
+                      label: 'Research Notes',
+                      color: const Color(0xFFD48B47),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        setState(() => _mobileBottomNavIndex = 3);
+                      },
+                    ),
+                    _buildActionChip(
                       icon: Icons.find_in_page_outlined,
                       label: 'Find in Page',
                       onTap: () {
@@ -664,6 +1368,17 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
                       onTap: () {
                         Navigator.pop(ctx);
                         _showPrivacyDisclosureDialog();
+                      },
+                    ),
+                    _buildActionChip(
+                      icon: Icons.auto_awesome_outlined,
+                      label: 'AI Workspace',
+                      color: const Color(0xFFD48B47),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        setState(() {
+                          _mobileBottomNavIndex = 5;
+                        });
                       },
                     ),
                   ],
@@ -813,6 +1528,11 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
       return _buildMobileSecondaryScreen(
         title: 'Settings',
         body: _buildSettingsView(),
+      );
+    } else if (_mobileBottomNavIndex == 5) {
+      return _buildMobileSecondaryScreen(
+        title: 'AI Workspace',
+        body: _buildAiGatewayView(),
       );
     }
 
@@ -989,7 +1709,7 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
         backgroundColor: const Color(0xFF13151A),
         selectedItemColor: const Color(0xFFD48B47),
         unselectedItemColor: Colors.white54,
-        currentIndex: _mobileBottomNavIndex,
+        currentIndex: _mobileBottomNavIndex.clamp(0, 4),
         type: BottomNavigationBarType.fixed,
         selectedFontSize: 11,
         unselectedFontSize: 11,
@@ -1367,6 +2087,22 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
                           tooltip: _isCurrentUrlBookmarked ? 'Remove Bookmark' : 'Bookmark Page',
                           visualDensity: VisualDensity.compact,
                           onPressed: _toggleBookmark,
+                        ),
+                        IconButton(
+                          icon: _isExtractingPage
+                              ? const SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFD48B47)),
+                                )
+                              : const Icon(
+                                  Icons.content_cut_outlined,
+                                  size: 17,
+                                  color: Color(0xFFD48B47),
+                                ),
+                          tooltip: 'Clip Evidence from Page',
+                          visualDensity: VisualDensity.compact,
+                          onPressed: _isExtractingPage ? null : _extractCurrentPageAndOpenClipModal,
                         ),
                       ],
                     ),
@@ -2441,8 +3177,147 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
             ],
           ),
         ),
+        const SizedBox(height: 20),
+
+        // AI Provider Configuration (Phase 3)
+        const Row(
+          children: [
+            Icon(Icons.auto_awesome, size: 18, color: Color(0xFFD48B47)),
+            SizedBox(width: 8),
+            Text(
+              'AI Provider & Gateway Configuration',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'HotTea uses a provider-independent AI gateway. All API credentials and endpoints are persisted locally in SQLite. HotTea never operates telemetry or intermediary proxy servers.',
+          style: TextStyle(fontSize: 11, color: Colors.white60),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1B1E27),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.white10),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Active AI Provider', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white70)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _aiGateway.availableProviders.map((p) {
+                  final isSelected = p.id == _aiGateway.activeConfig.id;
+                  final cap = _aiGateway.getCapability(p.id);
+                  return ChoiceChip(
+                    label: Text(
+                      '${p.name}${cap.isLocal ? ' (Planned)' : ''}',
+                      style: TextStyle(fontSize: 12, color: isSelected ? Colors.black : Colors.white),
+                    ),
+                    selected: isSelected,
+                    selectedColor: const Color(0xFFD48B47),
+                    backgroundColor: const Color(0xFF16181D),
+                    onSelected: (val) {
+                      if (val) {
+                        setState(() {
+                          _aiGateway.setActiveProvider(p.id);
+                          _aiBaseUrlController.text = _aiGateway.activeConfig.baseUrl;
+                          _aiModelController.text = _aiGateway.activeConfig.model;
+                          _aiApiKeyController.text = _aiGateway.activeConfig.apiKey;
+                        });
+                        _saveAiSettings();
+                      }
+                    },
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _aiBaseUrlController,
+                decoration: const InputDecoration(
+                  labelText: 'Endpoint Base URL',
+                  hintText: 'https://api.openai.com/v1',
+                  prefixIcon: Icon(Icons.link, size: 18),
+                  isDense: true,
+                  border: OutlineInputBorder(),
+                ),
+                style: const TextStyle(fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _aiModelController,
+                decoration: const InputDecoration(
+                  labelText: 'Model Identifier',
+                  hintText: 'gpt-4o-mini',
+                  prefixIcon: Icon(Icons.psychology_outlined, size: 18),
+                  isDense: true,
+                  border: OutlineInputBorder(),
+                ),
+                style: const TextStyle(fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _aiApiKeyController,
+                obscureText: _isAiApiKeyObscured,
+                decoration: InputDecoration(
+                  labelText: 'API Key (Stored locally in SQLite)',
+                  hintText: 'sk-...',
+                  prefixIcon: const Icon(Icons.key, size: 18),
+                  suffixIcon: IconButton(
+                    icon: Icon(_isAiApiKeyObscured ? Icons.visibility : Icons.visibility_off, size: 18),
+                    onPressed: () => setState(() => _isAiApiKeyObscured = !_isAiApiKeyObscured),
+                  ),
+                  isDense: true,
+                  border: const OutlineInputBorder(),
+                ),
+                style: const TextStyle(fontSize: 13),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFD48B47),
+                      foregroundColor: Colors.black,
+                    ),
+                    icon: const Icon(Icons.save, size: 16),
+                    label: const Text('Save AI Configuration', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    onPressed: _saveAiSettings,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ],
     );
+  }
+
+  Future<void> _saveAiSettings() async {
+    final activeId = _aiGateway.activeConfig.id;
+    final updatedConfig = _aiGateway.activeConfig.copyWith(
+      baseUrl: _aiBaseUrlController.text.trim().isEmpty ? _aiGateway.activeConfig.baseUrl : _aiBaseUrlController.text.trim(),
+      model: _aiModelController.text.trim().isEmpty ? _aiGateway.activeConfig.model : _aiModelController.text.trim(),
+      apiKey: _aiApiKeyController.text.trim(),
+    );
+    _aiGateway.updateProviderConfig(updatedConfig);
+
+    await _persistenceRepo.setSetting('ai_provider_id', activeId);
+    await _persistenceRepo.setSetting('ai_base_url', updatedConfig.baseUrl);
+    await _persistenceRepo.setSetting('ai_model', updatedConfig.model);
+    await _persistenceRepo.setSetting('ai_api_key', updatedConfig.apiKey);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('AI Gateway configuration saved to local storage.')),
+      );
+    }
   }
 
   // --- Downloads View ---
@@ -2560,8 +3435,550 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
     );
   }
 
-  // --- Research Notes View ---
-  Widget _buildNotesView() {
+  // --- Research Workspace View (Evidence Clippings, Sources, and Notes) ---
+  Widget _buildNotesView() => _buildResearchWorkspaceView();
+
+  Widget _buildResearchWorkspaceView() {
+    return Column(
+      children: [
+        // Sub-navigation header
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          color: const Color(0xFF161922),
+          child: Row(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      ChoiceChip(
+                        label: Text('Evidence (${_evidenceList.length})', style: const TextStyle(fontSize: 11)),
+                        selected: _activeResearchSubTab == 'evidence',
+                        selectedColor: const Color(0xFFD48B47),
+                        backgroundColor: const Color(0xFF1E222B),
+                        labelStyle: TextStyle(
+                          color: _activeResearchSubTab == 'evidence' ? Colors.black : Colors.white70,
+                          fontWeight: _activeResearchSubTab == 'evidence' ? FontWeight.bold : FontWeight.normal,
+                        ),
+                        visualDensity: VisualDensity.compact,
+                        onSelected: (val) {
+                          if (val) setState(() => _activeResearchSubTab = 'evidence');
+                        },
+                      ),
+                      const SizedBox(width: 6),
+                      ChoiceChip(
+                        label: Text('Sources (${_sources.length})', style: const TextStyle(fontSize: 11)),
+                        selected: _activeResearchSubTab == 'sources',
+                        selectedColor: const Color(0xFFD48B47),
+                        backgroundColor: const Color(0xFF1E222B),
+                        labelStyle: TextStyle(
+                          color: _activeResearchSubTab == 'sources' ? Colors.black : Colors.white70,
+                          fontWeight: _activeResearchSubTab == 'sources' ? FontWeight.bold : FontWeight.normal,
+                        ),
+                        visualDensity: VisualDensity.compact,
+                        onSelected: (val) {
+                          if (val) setState(() => _activeResearchSubTab = 'sources');
+                        },
+                      ),
+                      const SizedBox(width: 6),
+                      ChoiceChip(
+                        label: Text('Notes (${_notes.length})', style: const TextStyle(fontSize: 11)),
+                        selected: _activeResearchSubTab == 'notes',
+                        selectedColor: const Color(0xFFD48B47),
+                        backgroundColor: const Color(0xFF1E222B),
+                        labelStyle: TextStyle(
+                          color: _activeResearchSubTab == 'notes' ? Colors.black : Colors.white70,
+                          fontWeight: _activeResearchSubTab == 'notes' ? FontWeight.bold : FontWeight.normal,
+                        ),
+                        visualDensity: VisualDensity.compact,
+                        onSelected: (val) {
+                          if (val) setState(() => _activeResearchSubTab = 'notes');
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: _isExtractingPage
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFD48B47)),
+                      )
+                    : const Icon(Icons.content_cut_outlined, size: 17, color: Color(0xFFD48B47)),
+                tooltip: 'Clip Evidence from Active Webpage',
+                visualDensity: VisualDensity.compact,
+                onPressed: _isExtractingPage ? null : _extractCurrentPageAndOpenClipModal,
+              ),
+            ],
+          ),
+        ),
+
+        // Sub-view Body
+        Expanded(
+          child: _activeResearchSubTab == 'evidence'
+              ? _buildEvidenceClippingsSubView()
+              : _activeResearchSubTab == 'sources'
+                  ? _buildSourcesSubView()
+                  : _buildNotesSubView(),
+        ),
+      ],
+    );
+  }
+
+  // --- Sub-View 1: Evidence Clippings ---
+  Widget _buildEvidenceClippingsSubView() {
+    return Column(
+      children: [
+        // Search & Topic Filter Bar
+        if (_evidenceList.isNotEmpty || _evidenceFilterQuery.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 6),
+            child: TextField(
+              controller: _evidenceFilterController,
+              style: const TextStyle(fontSize: 12),
+              decoration: InputDecoration(
+                hintText: 'Search passages, annotations, or sources...',
+                hintStyle: const TextStyle(fontSize: 11, color: Colors.white38),
+                prefixIcon: const Icon(Icons.search, size: 16, color: Colors.white54),
+                suffixIcon: _evidenceFilterQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, size: 14),
+                        onPressed: () {
+                          _evidenceFilterController.clear();
+                          setState(() => _evidenceFilterQuery = '');
+                          _refreshEvidence();
+                        },
+                      )
+                    : null,
+                filled: true,
+                fillColor: const Color(0xFF16181D),
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)),
+              ),
+              onChanged: (val) {
+                setState(() => _evidenceFilterQuery = val.trim());
+                _refreshEvidence();
+              },
+            ),
+          ),
+
+        // Evidence List
+        Expanded(
+          child: _evidenceList.isEmpty
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.content_cut_outlined, size: 36, color: Colors.white24),
+                        const SizedBox(height: 10),
+                        const Text(
+                          'No evidence captured yet.',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white70),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Browse any webpage and click the Clip icon to preserve verbatim source passages with verified URLs.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 11, color: Colors.white38),
+                        ),
+                        const SizedBox(height: 14),
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.content_cut_outlined, size: 15),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFD48B47),
+                            foregroundColor: Colors.black,
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          onPressed: _extractCurrentPageAndOpenClipModal,
+                          label: const Text('Clip from Active Page', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : ListView.separated(
+                  padding: const EdgeInsets.all(10),
+                  itemCount: _evidenceList.length,
+                  separatorBuilder: (context, index) => const SizedBox(height: 10),
+                  itemBuilder: (context, index) {
+                    final e = _evidenceList[index];
+                    final dateStr = '${e.capturedAt.month}/${e.capturedAt.day} ${e.capturedAt.hour.toString().padLeft(2, '0')}:${e.capturedAt.minute.toString().padLeft(2, '0')}';
+
+                    return Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF16181F),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.white10),
+                      ),
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Source citation header
+                          Row(
+                            children: [
+                              const Icon(Icons.source_outlined, size: 14, color: Color(0xFFD48B47)),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  e.sourceTitle,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(dateStr, style: const TextStyle(fontSize: 10, color: Colors.white38)),
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline, size: 15, color: Colors.redAccent),
+                                visualDensity: VisualDensity.compact,
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                                tooltip: 'Delete Evidence',
+                                onPressed: () async {
+                                  if (e.id != null) {
+                                    await _persistenceRepo.deleteEvidence(e.id!);
+                                    await _refreshEvidence();
+                                  }
+                                },
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+
+                          // Clickable Source URL
+                          InkWell(
+                            onTap: () => _activeTab.loadUrl(e.sourceUrl),
+                            child: Text(
+                              e.sourceUrl.toString(),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 11, color: Colors.blueAccent, decoration: TextDecoration.underline),
+                            ),
+                          ),
+
+                          // Context heading badge
+                          if (e.contextHeading != null) ...[
+                            const SizedBox(height: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withAlpha(12),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.bookmark_border, size: 11, color: Colors.white60),
+                                  const SizedBox(width: 4),
+                                  Flexible(
+                                    child: Text(
+                                      'Section: ${e.contextHeading!}',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(fontSize: 10, color: Colors.white70),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                          if (e.topic != null && e.topic!.isNotEmpty) ...[
+                            const SizedBox(height: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFD48B47).withAlpha(30),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(color: const Color(0xFFD48B47).withAlpha(80)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.folder_outlined, size: 11, color: Color(0xFFD48B47)),
+                                  const SizedBox(width: 4),
+                                  Flexible(
+                                    child: Text(
+                                      'Topic: ${e.topic!}',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFFD48B47)),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 8),
+
+                          // Verbatim passage block
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF101218),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: Colors.white10),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      width: 3,
+                                      height: 14,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFD48B47),
+                                        borderRadius: BorderRadius.circular(2),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    const Icon(Icons.format_quote, size: 14, color: Color(0xFFD48B47)),
+                                    const SizedBox(width: 4),
+                                    const Text('Verbatim Evidence', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFFD48B47))),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                SelectableText(
+                                  '"${e.passage}"',
+                                  style: const TextStyle(fontSize: 12, height: 1.4, fontFamily: 'serif', color: Colors.white),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          // User Annotation (if present)
+                          if (e.annotation != null && e.annotation!.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Icon(Icons.edit_note, size: 14, color: Colors.white54),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    'Note: ${e.annotation!}',
+                                    style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.white70),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+
+                          // Tags
+                          if (e.tags.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 4,
+                              runSpacing: 4,
+                              children: e.tags.map((t) => Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFD48B47).withAlpha(25),
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(color: const Color(0xFFD48B47).withAlpha(60)),
+                                ),
+                                child: Text('#$t', style: const TextStyle(fontSize: 10, color: Color(0xFFD48B47))),
+                              )).toList(),
+                            ),
+                          ],
+                          const SizedBox(height: 8),
+
+                          // Action bar
+                          Wrap(
+                            alignment: WrapAlignment.end,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            spacing: 4,
+                            runSpacing: 4,
+                            children: [
+                              TextButton.icon(
+                                icon: const Icon(Icons.auto_awesome, size: 13, color: Color(0xFFD48B47)),
+                                label: const Text('Send to AI', style: TextStyle(fontSize: 11, color: Color(0xFFD48B47))),
+                                style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                                onPressed: () {
+                                  if (e.id != null) {
+                                    setState(() {
+                                      _selectedEvidenceIdsForAi.add(e.id!);
+                                      _activeRightTab = 'ai';
+                                    });
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Evidence attached to AI prompt.'), duration: Duration(seconds: 2)),
+                                    );
+                                  }
+                                },
+                              ),
+                              TextButton.icon(
+                                icon: const Icon(Icons.note_add_outlined, size: 13, color: Colors.white70),
+                                label: const Text('Append to Note', style: TextStyle(fontSize: 11, color: Colors.white70)),
+                                style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                                onPressed: () async {
+                                  final citation = '\n\n> ${e.passage}\n-- [${e.sourceTitle}](${e.sourceUrl})\n';
+                                  if (_selectedNote != null) {
+                                    final updated = _selectedNote!.copyWith(
+                                      content: _selectedNote!.content + citation,
+                                    );
+                                    await _persistenceRepo.updateNote(updated);
+                                    await _refreshNotes();
+                                  } else {
+                                    final newNote = await _persistenceRepo.createNote(
+                                      title: 'Research from ${e.sourceTitle}',
+                                      content: citation,
+                                      sourceUrl: e.sourceUrl,
+                                    );
+                                    await _refreshNotes();
+                                    _selectNote(newNote);
+                                  }
+                                  if (!context.mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Evidence appended to active Markdown note.')),
+                                  );
+                                },
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.edit_outlined, size: 14, color: Colors.white60),
+                                tooltip: 'Edit Annotation / Tags',
+                                visualDensity: VisualDensity.compact,
+                                onPressed: () => _showEditEvidenceModal(e),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
+  // --- Sub-View 2: Webpage Sources ---
+  Widget _buildSourcesSubView() {
+    if (_sources.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.source_outlined, size: 36, color: Colors.white24),
+              const SizedBox(height: 10),
+              const Text('No webpage sources captured yet.', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white70)),
+              const SizedBox(height: 4),
+              const Text('Extract content from any open webpage to view its headings, metadata, and body text.', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: Colors.white38)),
+              const SizedBox(height: 14),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.content_cut_outlined, size: 15),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFD48B47),
+                  foregroundColor: Colors.black,
+                  visualDensity: VisualDensity.compact,
+                ),
+                onPressed: _extractCurrentPageAndOpenClipModal,
+                label: const Text('Extract Active Page', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.all(10),
+      itemCount: _sources.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 8),
+      itemBuilder: (context, index) {
+        final s = _sources[index];
+        return Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF16181F),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.white10),
+          ),
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.language, size: 16, color: Color(0xFFD48B47)),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      s.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.white),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, size: 15, color: Colors.redAccent),
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () async {
+                      if (s.id != null) {
+                        await _persistenceRepo.deleteSource(s.id!);
+                        await _refreshSources();
+                      }
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 3),
+              InkWell(
+                onTap: () => _activeTab.loadUrl(s.url),
+                child: Text(
+                  s.url.toString(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 11, color: Colors.blueAccent, decoration: TextDecoration.underline),
+                ),
+              ),
+              if (s.author != null || s.publishedDate != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  '${s.author != null ? 'Author: ${s.author}  ' : ''}${s.publishedDate != null ? 'Date: ${s.publishedDate}' : ''}',
+                  style: const TextStyle(fontSize: 10, color: Colors.white54),
+                ),
+              ],
+              const SizedBox(height: 6),
+              Text(
+                '${s.headings.length} headings extracted • ${s.extractedText != null ? '${(s.extractedText!.length / 1000).toStringAsFixed(1)}k chars' : 'No body text'}',
+                style: const TextStyle(fontSize: 10, color: Colors.white38),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton.icon(
+                    icon: const Icon(Icons.menu_book, size: 13),
+                    label: const Text('Details & Headings', style: TextStyle(fontSize: 11)),
+                    style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                    onPressed: () => _showSourceDetailsModal(s),
+                  ),
+                  TextButton.icon(
+                    icon: const Icon(Icons.content_cut_outlined, size: 13, color: Color(0xFFD48B47)),
+                    label: const Text('Clip', style: TextStyle(fontSize: 11, color: Color(0xFFD48B47))),
+                    style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                    onPressed: () => _showCaptureEvidenceModal(initialSource: s),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // --- Sub-View 3: Markdown Notes ---
+  Widget _buildNotesSubView() {
     return Column(
       children: [
         Container(
@@ -2569,11 +3986,13 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
           color: const Color(0xFF161922),
           child: Row(
             children: [
-              Text(
-                'Notes (${_notes.length})',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+              Expanded(
+                child: Text(
+                  'Notes (${_notes.length})',
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                ),
               ),
-              const Spacer(),
               IconButton(
                 icon: const Icon(Icons.add, size: 18),
                 tooltip: 'Create New Note',
@@ -2991,57 +4410,843 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
     return '${dt.hour.toString().padLeft(2, "0")}:${dt.minute.toString().padLeft(2, "0")}';
   }
 
-  // --- AI Gateway View ---
-  Widget _buildAiGatewayView() {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.shield, size: 16, color: Colors.greenAccent),
-              const SizedBox(width: 6),
-              Text(
-                'Privacy Boundary Active',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.greenAccent.shade200,
-                  fontWeight: FontWeight.bold,
-                ),
+  // --- AI Gateway View (Phase 3) ---
+
+  Future<bool> _showCloudConsentDialog(ExternalTransmissionDisclosure disclosure) async {
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF16181D),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: Color(0xFFD48B47), width: 1.5),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.cloud_upload_outlined, color: Color(0xFFD48B47)),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Cloud Transmission Consent',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.orangeAccent.withAlpha(20),
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: Colors.orangeAccent.withAlpha(80)),
             ),
-            child: const Text(
-              'Requirement: Local inference must never silently fall back to cloud. No external provider configured.',
-              style: TextStyle(fontSize: 12, color: Colors.orangeAccent),
+          ],
+        ),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'HotTea guarantees explicit consent before any data leaves your machine. Please review what will be transmitted to the remote provider:',
+                  style: TextStyle(fontSize: 12, color: Colors.white70),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1B1E27),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.white12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.dns_outlined, size: 14, color: Colors.white54),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'Provider: ${disclosure.providerName}',
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Endpoint: ${disclosure.endpoint}',
+                        style: const TextStyle(fontSize: 11, color: Colors.white54),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Model: ${disclosure.model}',
+                        style: const TextStyle(fontSize: 11, color: Colors.white54),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Prompt Length: ${disclosure.promptCharacterCount} characters',
+                        style: const TextStyle(fontSize: 11, color: Colors.white54),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (disclosure.hasResearchContext) ...[
+                  Row(
+                    children: [
+                      const Icon(Icons.attach_file, size: 14, color: Color(0xFFD48B47)),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Attached Research Context (${disclosure.attachedPassages.length} passages):',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFFD48B47)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    constraints: const BoxConstraints(maxHeight: 180),
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1B1E27),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: const Color(0xFFD48B47).withAlpha(60)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (int i = 0; i < disclosure.attachedPassages.length; i++) ...[
+                          if (i > 0) const Divider(height: 12, color: Colors.white10),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                disclosure.attachedPassages[i].title,
+                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
+                              ),
+                              if (disclosure.attachedPassages[i].sourceUrl != null)
+                                Text(
+                                  disclosure.attachedPassages[i].sourceUrl.toString(),
+                                  style: const TextStyle(fontSize: 10, color: Color(0xFFD48B47)),
+                                ),
+                              const SizedBox(height: 2),
+                              Text(
+                                disclosure.attachedPassages[i].excerpt,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 10, color: Colors.white60),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Notice: Selected research passages will leave your device and be processed according to the provider\'s privacy policy.',
+                    style: TextStyle(fontSize: 10, color: Colors.amberAccent),
+                  ),
+                ] else ...[
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.greenAccent.withAlpha(20),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: Colors.greenAccent.withAlpha(80)),
+                    ),
+                    child: const Text(
+                      'No local research notes, browsing history, or browser cookies are included in this request.',
+                      style: TextStyle(fontSize: 11, color: Colors.greenAccent),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
-          const SizedBox(height: 12),
-          const Text(
-            'Local Storage Guarantees:',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+        ),
+        actions: [
+          OutlinedButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel Request', style: TextStyle(color: Colors.white70)),
           ),
-          const SizedBox(height: 6),
-          const Text('• Bookmarks and notes stored in local SQLite database.'),
-          const Text('• History query parameters automatically sanitized.'),
-          const Text('• Zero cloud sync or telemetry.'),
-          const Spacer(),
-          OutlinedButton.icon(
-            onPressed: _showPrivacyDisclosureDialog,
-            icon: const Icon(Icons.info_outline, size: 16),
-            label: const Text('Review Privacy Disclosure'),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFD48B47),
+              foregroundColor: Colors.black,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Authorize & Transmit', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
+    );
+    return result == true;
+  }
+
+  void _showResearchNoteSelector() {
+    showModalBottomSheet(
+      isScrollControlled: true,
+      context: context,
+      backgroundColor: const Color(0xFF16181D),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          return SafeArea(
+            child: Container(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(context).height * 0.75,
+              ),
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.auto_awesome_outlined, color: Color(0xFFD48B47), size: 18),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Select Research Notes for Context',
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          setState(() {
+                            _selectedNoteIdsForAi.clear();
+                            _selectedEvidenceIdsForAi.clear();
+                          });
+                          setSheetState(() {});
+                        },
+                        child: const Text('Clear All', style: TextStyle(fontSize: 12, color: Colors.white60)),
+                      ),
+                    ],
+                  ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Only explicitly checked notes and evidence clippings will be transmitted to the AI provider.',
+                  style: TextStyle(fontSize: 11, color: Colors.white54),
+                ),
+                const SizedBox(height: 12),
+                if (_notes.isEmpty && _evidenceList.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(
+                      child: Text('No research notes or evidence clippings found. Clip passages while browsing first.', textAlign: TextAlign.center, style: TextStyle(color: Colors.white38, fontSize: 12)),
+                    ),
+                  )
+                else
+                  Expanded(
+                    child: ListView(
+                      children: [
+                        if (_evidenceList.isNotEmpty) ...[
+                          const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                            child: Text('Evidence Clippings', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFFD48B47))),
+                          ),
+                          ..._evidenceList.map((e) {
+                            final eId = e.id;
+                            final isSelected = eId != null && _selectedEvidenceIdsForAi.contains(eId);
+                            return CheckboxListTile(
+                              value: isSelected,
+                              activeColor: const Color(0xFFD48B47),
+                              secondary: const Icon(Icons.format_quote, size: 16, color: Color(0xFFD48B47)),
+                              title: Text(e.sourceTitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                              subtitle: Text(
+                                '"${e.passage}"',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 11, color: Colors.white70, fontStyle: FontStyle.italic),
+                              ),
+                              onChanged: (val) {
+                                if (eId == null) return;
+                                setState(() {
+                                  if (val == true) {
+                                    _selectedEvidenceIdsForAi.add(eId);
+                                  } else {
+                                    _selectedEvidenceIdsForAi.remove(eId);
+                                  }
+                                });
+                                setSheetState(() {});
+                              },
+                            );
+                          }),
+                          const Divider(height: 16, color: Colors.white12),
+                        ],
+                        if (_notes.isNotEmpty) ...[
+                          const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                            child: Text('Research Notes', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFFD48B47))),
+                          ),
+                          ..._notes.map((note) {
+                            final noteId = note.id;
+                            final isSelected = noteId != null && _selectedNoteIdsForAi.contains(noteId);
+                            return CheckboxListTile(
+                              value: isSelected,
+                              activeColor: const Color(0xFFD48B47),
+                              secondary: const Icon(Icons.note_alt_outlined, size: 16, color: Colors.white60),
+                              title: Text(note.title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                              subtitle: Text(
+                                note.content,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 11, color: Colors.white54),
+                              ),
+                              onChanged: (val) {
+                                if (noteId == null) return;
+                                setState(() {
+                                  if (val == true) {
+                                    _selectedNoteIdsForAi.add(noteId);
+                                  } else {
+                                    _selectedNoteIdsForAi.remove(noteId);
+                                  }
+                                });
+                                setSheetState(() {});
+                              },
+                            );
+                          }),
+                        ],
+                      ],
+                    ),
+                  ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFD48B47),
+                      foregroundColor: Colors.black,
+                    ),
+                    onPressed: () => Navigator.pop(ctx),
+                    child: Text('Done (${_selectedNoteIdsForAi.length + _selectedEvidenceIdsForAi.length} selected)', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    ),
+  );
+}
+
+  Future<void> _sendAiRequest() async {
+    final prompt = _aiPromptController.text.trim();
+    if (prompt.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a prompt before sending.')),
+      );
+      return;
+    }
+
+    final attachedPassages = [
+      ..._notes
+          .where((n) => n.id != null && _selectedNoteIdsForAi.contains(n.id))
+          .map((n) => ResearchContextReference(
+                title: n.title,
+                contentSnippet: n.content,
+                sourceUrl: n.sourceUrl,
+              )),
+      ..._evidenceList
+          .where((e) => e.id != null && _selectedEvidenceIdsForAi.contains(e.id))
+          .map((e) => ResearchContextReference(
+                title: '${e.sourceTitle} [Evidence]',
+                contentSnippet: e.passage,
+                sourceUrl: e.sourceUrl,
+              )),
+    ];
+
+    final activeConfig = _aiGateway.activeConfig;
+    final request = AiRequest.prompt(
+      prompt: prompt,
+      providerId: activeConfig.id,
+      model: activeConfig.model,
+      researchContext: attachedPassages,
+    );
+
+    final policy = AiConsentPolicy();
+    final disclosure = policy.createDisclosure(config: activeConfig, request: request);
+
+    if (disclosure.target == AiExecutionTarget.externalProvider) {
+      final consentGiven = await _showCloudConsentDialog(disclosure);
+      if (!consentGiven) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Request cancelled. No data transmitted.')),
+          );
+        }
+        return;
+      }
+    }
+
+    setState(() {
+      _isAiExecuting = true;
+      _aiError = null;
+      _lastAiResponse = null;
+    });
+
+    try {
+      final response = await _aiGateway.complete(request, userConsentGiven: true);
+      if (mounted) {
+        setState(() {
+          _lastAiResponse = response;
+        });
+      }
+    } on AiProviderException catch (e) {
+      if (mounted) {
+        setState(() {
+          _aiError = e.userMessage;
+        });
+      }
+    } on LocalInferenceFailureException catch (e) {
+      if (mounted) {
+        setState(() {
+          _aiError = e.message;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _aiError = 'Error: $e';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isAiExecuting = false;
+        });
+      }
+    }
+  }
+
+  void _cancelAiRequest() {
+    _aiGateway.cancelCurrentRequest();
+    setState(() {
+      _isAiExecuting = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Request cancelled.')),
+    );
+  }
+
+  Future<void> _saveAiResponseAsNote(AiResponse response) async {
+    final title = 'AI Research: ${_aiPromptController.text.trim()}';
+    final content = response.text;
+    final sourceUri = Uri.tryParse(_aiGateway.activeConfig.baseUrl);
+
+    final created = await _persistenceRepo.createNote(
+      title: title.length > 60 ? '${title.substring(0, 57)}...' : title,
+      content: content,
+      sourceUrl: sourceUri,
+    );
+    await _refreshNotes();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('AI response saved to research notes (ID #${created.id}).')),
+      );
+    }
+  }
+
+  Widget _buildAiGatewayView() {
+    final activeConfig = _aiGateway.activeConfig;
+    final capability = _aiGateway.getCapability(activeConfig.id);
+    final isLocal = activeConfig.isLocal;
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        // Privacy & Target Status Banner
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: isLocal ? Colors.greenAccent.withAlpha(20) : const Color(0xFF1B1E27),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: isLocal ? Colors.greenAccent.withAlpha(80) : const Color(0xFFD48B47).withAlpha(120),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    isLocal ? Icons.security : Icons.cloud_outlined,
+                    size: 16,
+                    color: isLocal ? Colors.greenAccent : const Color(0xFFD48B47),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      isLocal ? 'Local On-Device Execution Target' : 'Hosted Cloud Execution Target',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: isLocal ? Colors.greenAccent : const Color(0xFFD48B47),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: capability.isAvailable ? Colors.green.withAlpha(40) : Colors.orange.withAlpha(40),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      capability.isAvailable ? 'Available' : 'Planned',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: capability.isAvailable ? Colors.greenAccent : Colors.orangeAccent,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                isLocal
+                    ? 'Local inference engine is modelled and planned. It runs offline without internet access and will never silently redirect requests to cloud.'
+                    : 'Requests connect directly to ${activeConfig.baseUrl} (${activeConfig.model}). Explicit consent is required before any data leaves your machine.',
+                style: const TextStyle(fontSize: 11, color: Colors.white70, height: 1.3),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+
+        // Provider Choice Chips
+        const Text('Inference Provider', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white70)),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          children: _aiGateway.availableProviders.map((p) {
+            final isSelected = p.id == activeConfig.id;
+            final cap = _aiGateway.getCapability(p.id);
+            return ChoiceChip(
+              label: Text(
+                '${p.name}${cap.isLocal ? ' (Planned)' : ''}',
+                style: TextStyle(fontSize: 11, color: isSelected ? Colors.black : Colors.white),
+              ),
+              selected: isSelected,
+              selectedColor: const Color(0xFFD48B47),
+              backgroundColor: const Color(0xFF1B1E27),
+              onSelected: (val) {
+                if (val) {
+                  setState(() {
+                    _aiGateway.setActiveProvider(p.id);
+                  });
+                }
+              },
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 14),
+
+        // Research Context Attachment Section
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1B1E27),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.white10),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.note_alt_outlined, size: 14, color: Color(0xFFD48B47)),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Research Evidence (${_selectedNoteIdsForAi.length} attached)',
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    onPressed: _showResearchNoteSelector,
+                    icon: const Icon(Icons.add, size: 14),
+                    label: const Text('Select Notes', style: TextStyle(fontSize: 11)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Attach saved research passages as verified context. Source URLs are preserved for attribution.',
+                style: TextStyle(fontSize: 10, color: Colors.white54),
+              ),
+              if (_selectedNoteIdsForAi.isNotEmpty || _selectedEvidenceIdsForAi.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    ..._notes.where((n) => n.id != null && _selectedNoteIdsForAi.contains(n.id)).map((n) {
+                      return Chip(
+                        visualDensity: VisualDensity.compact,
+                        avatar: const Icon(Icons.note_alt_outlined, size: 12),
+                        label: Text(n.title, style: const TextStyle(fontSize: 11)),
+                        deleteIcon: const Icon(Icons.close, size: 14),
+                        onDeleted: () {
+                          setState(() {
+                            _selectedNoteIdsForAi.remove(n.id);
+                          });
+                        },
+                      );
+                    }),
+                    ..._evidenceList.where((e) => e.id != null && _selectedEvidenceIdsForAi.contains(e.id)).map((e) {
+                      return Chip(
+                        visualDensity: VisualDensity.compact,
+                        avatar: const Icon(Icons.format_quote, size: 12, color: Color(0xFFD48B47)),
+                        label: Text('${e.sourceTitle} (Evidence)', style: const TextStyle(fontSize: 11)),
+                        deleteIcon: const Icon(Icons.close, size: 14),
+                        onDeleted: () {
+                          setState(() {
+                            _selectedEvidenceIdsForAi.remove(e.id);
+                          });
+                        },
+                      );
+                    }),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+
+        // Prompt Input
+        const Text('AI Prompt', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white70)),
+        const SizedBox(height: 6),
+        TextField(
+          controller: _aiPromptController,
+          maxLines: 5,
+          minLines: 3,
+          decoration: InputDecoration(
+            hintText: 'Enter your research query or prompt...\nExample: "Synthesize the key points from the attached research passages regarding browser privacy."',
+            hintStyle: const TextStyle(fontSize: 12, color: Colors.white38),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: Colors.white24),
+            ),
+            filled: true,
+            fillColor: const Color(0xFF1B1E27),
+          ),
+          style: const TextStyle(fontSize: 13),
+        ),
+        const SizedBox(height: 12),
+
+        // Action Buttons Row
+        Row(
+          children: [
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFD48B47),
+                foregroundColor: Colors.black,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              ),
+              onPressed: _isAiExecuting ? null : _sendAiRequest,
+              icon: const Icon(Icons.send, size: 16),
+              label: const Text('Send to AI', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            ),
+            if (_isAiExecuting) ...[
+              const SizedBox(width: 12),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.redAccent,
+                  side: const BorderSide(color: Colors.redAccent),
+                ),
+                onPressed: _cancelAiRequest,
+                icon: const Icon(Icons.stop_circle_outlined, size: 16),
+                label: const Text('Cancel', style: TextStyle(fontSize: 12)),
+              ),
+              const SizedBox(width: 12),
+              const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFD48B47))),
+              ),
+            ] else ...[
+              const SizedBox(width: 8),
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    _aiPromptController.clear();
+                    _aiError = null;
+                  });
+                },
+                child: const Text('Clear', style: TextStyle(color: Colors.white54, fontSize: 12)),
+              ),
+            ],
+            const Spacer(),
+            IconButton(
+              icon: const Icon(Icons.settings_outlined, size: 18, color: Colors.white60),
+              tooltip: 'Configure AI Settings',
+              onPressed: () {
+                setState(() {
+                  _activeRightTab = 'settings';
+                  _mobileBottomNavIndex = 4;
+                });
+              },
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+
+        // Error display
+        if (_aiError != null) ...[
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.redAccent.withAlpha(20),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.redAccent.withAlpha(120)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.error_outline, color: Colors.redAccent, size: 18),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'AI Request Failed',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.redAccent),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _aiError!,
+                        style: const TextStyle(fontSize: 11, color: Colors.white70),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, size: 14, color: Colors.white54),
+                  onPressed: () => setState(() => _aiError = null),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+        ],
+
+        // Response Card
+        if (_lastAiResponse != null) ...[
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1B1E27),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFD48B47).withAlpha(120)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.auto_awesome, size: 16, color: Color(0xFFD48B47)),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Response (${_lastAiResponse!.model})',
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white),
+                        ),
+                      ],
+                    ),
+                    Text(
+                      '${_lastAiResponse!.duration.inMilliseconds}ms',
+                      style: const TextStyle(fontSize: 10, color: Colors.white38),
+                    ),
+                  ],
+                ),
+                if (_lastAiResponse!.usage != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Tokens: prompt ${_lastAiResponse!.usage!.promptTokens}, completion ${_lastAiResponse!.usage!.completionTokens}, total ${_lastAiResponse!.usage!.totalTokens}',
+                    style: const TextStyle(fontSize: 10, color: Colors.white38),
+                  ),
+                ],
+                const Divider(height: 16, color: Colors.white12),
+                SelectableText(
+                  _lastAiResponse!.text,
+                  style: const TextStyle(fontSize: 13, height: 1.5, color: Colors.white),
+                ),
+                if (_lastAiResponse!.sourceReferences.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Supplied Evidence Context (Not model-invented):',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFFD48B47)),
+                  ),
+                  const SizedBox(height: 4),
+                  ..._lastAiResponse!.sourceReferences.map((ref) => Padding(
+                        padding: const EdgeInsets.only(bottom: 2),
+                        child: Text(
+                          '• ${ref.title}${ref.sourceUrl != null ? ' (${ref.sourceUrl})' : ''}',
+                          style: const TextStyle(fontSize: 10, color: Colors.white60),
+                        ),
+                      )),
+                ],
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: _lastAiResponse!.text));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Response copied to clipboard.')),
+                        );
+                      },
+                      icon: const Icon(Icons.copy, size: 14),
+                      label: const Text('Copy', style: TextStyle(fontSize: 11)),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFD48B47),
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      onPressed: () => _saveAiResponseAsNote(_lastAiResponse!),
+                      icon: const Icon(Icons.bookmark_add_outlined, size: 14),
+                      label: const Text('Clip to Notes', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+
+        // Privacy Policy Review Button
+        Center(
+          child: TextButton.icon(
+            onPressed: _showPrivacyDisclosureDialog,
+            icon: const Icon(Icons.shield_outlined, size: 14, color: Colors.white54),
+            label: const Text('Review HotTea Privacy Guarantees', style: TextStyle(fontSize: 11, color: Colors.white54)),
+          ),
+        ),
+      ],
     );
   }
 }

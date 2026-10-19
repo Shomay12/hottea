@@ -570,22 +570,26 @@ Phase 2: Browser MVP
 * Implement bookmarks and browsing history.
 * Validate real browsing on supported platforms.
 
-Phase 3: AI Gateway
+Phase 3: AI Gateway (Implemented & Verified)
 
-* Implement the first working AI provider.
-* Add provider configuration and error handling.
-* Implement explicit cloud-transfer consent.
-* Prevent silent local-to-cloud fallback.
-* Investigate local inference integration.
+* [x] Provider-independent AI interface (`AiGateway`, `AiRequest`, `AiResponse`, `AiProviderAdapter`).
+* [x] Hosted AI provider: OpenAI-compatible chat completions adapter (`OpenAiChatCompletionsAdapter`) with configurable base URL, model, timeouts, and sanitized errors.
+* [x] Explicit Cloud Consent: Dialog disclosing provider, endpoint, prompt length, and attached research notes + URLs prior to transmission.
+* [x] Local runtime modeling (`LocalRuntimeStubAdapter`) with absolute ban on silent cloud fallback (`LocalInferenceFailureException`).
+* [x] Research workspace integration: Explicit user selection of research notes as grounded context with preserved source URLs.
+* [x] Zero telemetry, zero plaintext credential leaks in logs or exceptions, and direct HTTPS endpoints.
+* [x] Validated across 56 automated tests (14 AI tests), clean `flutter analyze`, and successful builds on Web and macOS.
 
-Phase 4: Research Workspace
+Phase 4: Research Workspace & Evidence Capture (Core Milestones Implemented)
 
-* Implement persistent research notes.
-* Save source metadata.
-* Associate notes with webpages.
-* Implement source-aware AI responses.
-* Add evidence and reference tracking.
-* Support research export.
+* [x] On-device webpage content extraction (`WebpageExtractionService`): title, canonical URL, author, date, headings, readable main text (cleaned & capped at 50,000 chars), and active selection.
+* [x] Verbatim evidence clipping (`EvidenceEntity`): capture exact text passages, context headings, source URLs, timestamps, user annotations, tags, and topics without AI rewriting.
+* [x] Webpage source metadata persistence (`SourceEntity`): permanent record of visited pages, outlines, and full extracted text.
+* [x] Local storage integration (SQLite Schema Version 3 & in-memory): dedicated `sources` and `evidence` tables with query, tag, and topic filtering.
+* [x] Research Workspace UI: 3-subtab interface for Evidence Clippings, Webpage Sources, and Markdown Notes with responsive desktop split canvas and mobile action sheets.
+* [x] Grounded AI context integration: selective attachment of individual evidence passages to AI queries with preserved source attribution and explicit consent disclosure.
+* [ ] Advanced research report export (Markdown/HTML bundle).
+* [ ] Multi-document cross-source contradiction detection.
 
 Phase 5: .tea Vault
 

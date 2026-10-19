@@ -1,3 +1,9 @@
+import '../../features/research/domain/evidence_entity.dart';
+import '../../features/research/domain/source_entity.dart';
+
+export '../../features/research/domain/evidence_entity.dart';
+export '../../features/research/domain/source_entity.dart';
+
 /// Domain entity representing a user-saved bookmark.
 class BookmarkEntity {
   final int? id;
@@ -239,4 +245,31 @@ abstract class LocalPersistenceRepository {
 
   /// Sets or updates a persistent configuration [value] for [key].
   Future<void> setSetting(String key, String value);
+
+  // --- Webpage Sources Operations ---
+  /// Saves or updates a captured webpage source. Deduplicates by URL.
+  Future<SourceEntity> saveSource(SourceEntity source);
+
+  /// Retrieves all saved webpage sources sorted by capture time.
+  Future<List<SourceEntity>> getSources();
+
+  /// Retrieves a saved source by exact URL, or null if not yet saved.
+  Future<SourceEntity?> getSourceByUrl(Uri url);
+
+  /// Deletes a saved source record and cascades to unbind related evidence.
+  Future<void> deleteSource(int id);
+
+  // --- Evidence Clippings Operations ---
+  /// Saves a newly clipped verbatim evidence passage.
+  Future<EvidenceEntity> saveEvidence(EvidenceEntity evidence);
+
+  /// Retrieves saved evidence clippings, with optional topic, tag, or text filter.
+  Future<List<EvidenceEntity>> getEvidence({String? topic, String? tag, String? query});
+
+  /// Updates annotations, tags, or topic of an existing evidence record.
+  Future<void> updateEvidence(EvidenceEntity evidence);
+
+  /// Deletes an evidence clipping by ID.
+  Future<void> deleteEvidence(int id);
 }
+

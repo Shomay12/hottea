@@ -55,7 +55,7 @@ Open [http://localhost:8080](http://localhost:8080) in your web browser.
 The website is pre-configured for the official HotTea GitHub repository:
 * **Creator & Lead Maintainer**: `Shomayyy12` ([@Shomay12](https://github.com/Shomay12))
 * **Repository Owner**: `Shomay12`
-* **Repository Name**: `hottea`
+* **Repository Name**: `HotTea`
 * **URL**: `https://github.com/Shomay12/hottea`
 
 ### Modifying the Repository Configuration

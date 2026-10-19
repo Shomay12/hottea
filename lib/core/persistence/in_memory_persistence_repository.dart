@@ -7,10 +7,14 @@ class InMemoryPersistenceRepository implements LocalPersistenceRepository {
   final List<HistoryEntry> _history = [];
   final Map<int, ResearchNote> _notes = {};
   final Map<String, String> _settings = {};
+  final Map<int, SourceEntity> _sources = {};
+  final Map<int, EvidenceEntity> _evidence = {};
 
   int _nextBookmarkId = 1;
   int _nextHistoryId = 1;
   int _nextNoteId = 1;
+  int _nextSourceId = 1;
+  int _nextEvidenceId = 1;
 
   @override
   Future<void> initialize() async {}
@@ -168,5 +172,105 @@ class InMemoryPersistenceRepository implements LocalPersistenceRepository {
   @override
   Future<void> setSetting(String key, String value) async {
     _settings[key] = value;
+  }
+
+  // =========================================================================
+  // Webpage Sources
+  // =========================================================================
+
+  @override
+  Future<SourceEntity> saveSource(SourceEntity source) async {
+    final cleanUrl = source.url.toString();
+    final existingId = _sources.keys.cast<int?>().firstWhere(
+          (k) => _sources[k]?.url.toString() == cleanUrl,
+          orElse: () => null,
+        );
+
+    if (existingId != null) {
+      final updated = source.copyWith(id: existingId, capturedAt: DateTime.now());
+      _sources[existingId] = updated;
+      return updated;
+    }
+
+    final id = _nextSourceId++;
+    final created = source.copyWith(id: id, capturedAt: DateTime.now());
+    _sources[id] = created;
+    return created;
+  }
+
+  @override
+  Future<List<SourceEntity>> getSources() async {
+    final list = _sources.values.toList();
+    list.sort((a, b) => b.capturedAt.compareTo(a.capturedAt));
+    return list;
+  }
+
+  @override
+  Future<SourceEntity?> getSourceByUrl(Uri url) async {
+    final cleanUrl = url.toString();
+    return _sources.values.cast<SourceEntity?>().firstWhere(
+          (s) => s?.url.toString() == cleanUrl,
+          orElse: () => null,
+        );
+  }
+
+  @override
+  Future<void> deleteSource(int id) async {
+    _sources.remove(id);
+  }
+
+  // =========================================================================
+  // Evidence Clippings
+  // =========================================================================
+
+  @override
+  Future<EvidenceEntity> saveEvidence(EvidenceEntity evidence) async {
+    final id = _nextEvidenceId++;
+    final created = evidence.copyWith(id: id, capturedAt: DateTime.now());
+    _evidence[id] = created;
+    return created;
+  }
+
+  @override
+  Future<List<EvidenceEntity>> getEvidence({
+    String? topic,
+    String? tag,
+    String? query,
+  }) async {
+    var list = _evidence.values.toList();
+
+    if (topic != null && topic.trim().isNotEmpty) {
+      list = list.where((e) => e.topic?.toLowerCase() == topic.trim().toLowerCase()).toList();
+    }
+
+    if (tag != null && tag.trim().isNotEmpty) {
+      final lowerTag = tag.trim().toLowerCase();
+      list = list.where((e) => e.tags.any((t) => t.toLowerCase() == lowerTag)).toList();
+    }
+
+    if (query != null && query.trim().isNotEmpty) {
+      final term = query.trim().toLowerCase();
+      list = list.where((e) =>
+          e.passage.toLowerCase().contains(term) ||
+          (e.annotation?.toLowerCase().contains(term) ?? false) ||
+          e.tags.any((t) => t.toLowerCase().contains(term)) ||
+          e.sourceTitle.toLowerCase().contains(term)).toList();
+    }
+
+    list.sort((a, b) => b.capturedAt.compareTo(a.capturedAt));
+    return list;
+  }
+
+  @override
+  Future<void> updateEvidence(EvidenceEntity evidence) async {
+    if (evidence.id == null || !_evidence.containsKey(evidence.id)) {
+      throw ArgumentError('Cannot update evidence record without existing ID');
+    }
+    _evidence[evidence.id!] = evidence;
+  }
+
+  @override
+  Future<void> deleteEvidence(int id) async {
+    _evidence.remove(id);
   }
 }

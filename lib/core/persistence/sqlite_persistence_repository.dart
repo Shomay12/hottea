@@ -326,4 +326,169 @@ class SqlitePersistenceRepository implements LocalPersistenceRepository {
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
+
+  // =========================================================================
+  // Webpage Sources
+  // =========================================================================
+
+  @override
+  Future<SourceEntity> saveSource(SourceEntity source) async {
+    final cleanUrl = source.url.toString();
+    final now = DateTime.now().millisecondsSinceEpoch;
+
+    final existing = await db.query(
+      'sources',
+      where: 'url = ?',
+      whereArgs: [cleanUrl],
+      limit: 1,
+    );
+
+    if (existing.isNotEmpty) {
+      final id = existing.first['id'] as int;
+      await db.update(
+        'sources',
+        {
+          'title': source.title,
+          'canonical_url': source.canonicalUrl?.toString(),
+          'author': source.author,
+          'published_date': source.publishedDate,
+          'headings': source.headings.join('\n'),
+          'extracted_text': source.extractedText,
+          'captured_at': now,
+        },
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+      return source.copyWith(
+        id: id,
+        capturedAt: DateTime.fromMillisecondsSinceEpoch(now),
+      );
+    }
+
+    final id = await db.insert(
+      'sources',
+      {
+        'url': cleanUrl,
+        'title': source.title,
+        'canonical_url': source.canonicalUrl?.toString(),
+        'author': source.author,
+        'published_date': source.publishedDate,
+        'headings': source.headings.join('\n'),
+        'extracted_text': source.extractedText,
+        'captured_at': now,
+      },
+    );
+
+    return source.copyWith(
+      id: id,
+      capturedAt: DateTime.fromMillisecondsSinceEpoch(now),
+    );
+  }
+
+  @override
+  Future<List<SourceEntity>> getSources() async {
+    final rows = await db.query(
+      'sources',
+      orderBy: 'captured_at DESC',
+    );
+    return rows.map((r) => SourceEntity.fromMap(r)).toList();
+  }
+
+  @override
+  Future<SourceEntity?> getSourceByUrl(Uri url) async {
+    final rows = await db.query(
+      'sources',
+      where: 'url = ?',
+      whereArgs: [url.toString()],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    return SourceEntity.fromMap(rows.first);
+  }
+
+  @override
+  Future<void> deleteSource(int id) async {
+    await db.delete(
+      'sources',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  // =========================================================================
+  // Evidence Clippings
+  // =========================================================================
+
+  @override
+  Future<EvidenceEntity> saveEvidence(EvidenceEntity evidence) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final map = evidence.toMap();
+    map['captured_at'] = now;
+
+    final id = await db.insert('evidence', map);
+    return evidence.copyWith(
+      id: id,
+      capturedAt: DateTime.fromMillisecondsSinceEpoch(now),
+    );
+  }
+
+  @override
+  Future<List<EvidenceEntity>> getEvidence({
+    String? topic,
+    String? tag,
+    String? query,
+  }) async {
+    final conditions = <String>[];
+    final args = <dynamic>[];
+
+    if (topic != null && topic.trim().isNotEmpty) {
+      conditions.add('topic = ?');
+      args.add(topic.trim());
+    }
+
+    if (tag != null && tag.trim().isNotEmpty) {
+      conditions.add('tags LIKE ?');
+      args.add('%${tag.trim()}%');
+    }
+
+    if (query != null && query.trim().isNotEmpty) {
+      conditions.add('(passage LIKE ? OR annotation LIKE ? OR tags LIKE ? OR source_title LIKE ?)');
+      final term = '%${query.trim()}%';
+      args.addAll([term, term, term, term]);
+    }
+
+    final whereClause = conditions.isNotEmpty ? conditions.join(' AND ') : null;
+
+    final rows = await db.query(
+      'evidence',
+      where: whereClause,
+      whereArgs: args.isNotEmpty ? args : null,
+      orderBy: 'captured_at DESC',
+    );
+
+    return rows.map((r) => EvidenceEntity.fromMap(r)).toList();
+  }
+
+  @override
+  Future<void> updateEvidence(EvidenceEntity evidence) async {
+    if (evidence.id == null) {
+      throw ArgumentError('Cannot update evidence record without valid ID');
+    }
+
+    await db.update(
+      'evidence',
+      evidence.toMap(),
+      where: 'id = ?',
+      whereArgs: [evidence.id],
+    );
+  }
+
+  @override
+  Future<void> deleteEvidence(int id) async {
+    await db.delete(
+      'evidence',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
 }

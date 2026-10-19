@@ -7,7 +7,7 @@ import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart';
 /// and safe parameterized transactions across Web, Desktop, and Mobile.
 class HotTeaDatabaseHelper {
   static const String databaseName = 'hottea_local_workspace.db';
-  static const int databaseVersion = 2;
+  static const int databaseVersion = 3;
 
   static Database? _database;
   static bool _initializedPlatform = false;
@@ -106,6 +106,42 @@ class HotTeaDatabaseHelper {
       )
     ''');
 
+    // 5. Webpage Sources Table
+    batch.execute('''
+      CREATE TABLE sources (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        url TEXT NOT NULL UNIQUE,
+        title TEXT NOT NULL,
+        canonical_url TEXT,
+        author TEXT,
+        published_date TEXT,
+        headings TEXT,
+        extracted_text TEXT,
+        captured_at INTEGER NOT NULL
+      )
+    ''');
+    batch.execute('CREATE INDEX idx_sources_captured ON sources (captured_at DESC)');
+    batch.execute('CREATE INDEX idx_sources_url ON sources (url)');
+
+    // 6. Evidence Clippings Table
+    batch.execute('''
+      CREATE TABLE evidence (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        source_id INTEGER REFERENCES sources(id) ON DELETE SET NULL,
+        source_url TEXT NOT NULL,
+        source_title TEXT NOT NULL,
+        passage TEXT NOT NULL,
+        context_heading TEXT,
+        annotation TEXT,
+        tags TEXT,
+        topic TEXT,
+        captured_at INTEGER NOT NULL
+      )
+    ''');
+    batch.execute('CREATE INDEX idx_evidence_captured ON evidence (captured_at DESC)');
+    batch.execute('CREATE INDEX idx_evidence_source_url ON evidence (source_url)');
+    batch.execute('CREATE INDEX idx_evidence_topic ON evidence (topic)');
+
     await batch.commit(noResult: true);
   }
 
@@ -117,6 +153,42 @@ class HotTeaDatabaseHelper {
           value TEXT NOT NULL
         )
       ''');
+    }
+
+    if (oldVersion < 3) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS sources (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          url TEXT NOT NULL UNIQUE,
+          title TEXT NOT NULL,
+          canonical_url TEXT,
+          author TEXT,
+          published_date TEXT,
+          headings TEXT,
+          extracted_text TEXT,
+          captured_at INTEGER NOT NULL
+        )
+      ''');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_sources_captured ON sources (captured_at DESC)');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_sources_url ON sources (url)');
+
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS evidence (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          source_id INTEGER REFERENCES sources(id) ON DELETE SET NULL,
+          source_url TEXT NOT NULL,
+          source_title TEXT NOT NULL,
+          passage TEXT NOT NULL,
+          context_heading TEXT,
+          annotation TEXT,
+          tags TEXT,
+          topic TEXT,
+          captured_at INTEGER NOT NULL
+        )
+      ''');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_evidence_captured ON evidence (captured_at DESC)');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_evidence_source_url ON evidence (source_url)');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_evidence_topic ON evidence (topic)');
     }
   }
 

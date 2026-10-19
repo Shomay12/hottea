@@ -25,19 +25,19 @@ function initDownloadsPage() {
       if (releases && releases.length > 0 && releases[0].assets && releases[0].assets.length > 0) {
         renderLatestRelease(container, releases[0]);
       } else {
-        renderAndroidApkFeatured(container);
+        renderFeaturedReleases(container);
       }
     })
     .catch(err => {
-      console.warn('Could not fetch GitHub releases, showing bundled Android release:', err);
-      renderAndroidApkFeatured(container);
+      console.warn('Could not fetch GitHub releases, showing bundled releases:', err);
+      renderFeaturedReleases(container);
     });
 }
 
 /**
- * Renders the official HotTea Android Release APK banner
+ * Renders the official HotTea macOS DMG and Android APK release banner
  */
-function renderAndroidApkFeatured(container) {
+function renderFeaturedReleases(container) {
   container.innerHTML = `
     <div class="featured-release-banner">
       <div class="featured-release-header">
@@ -45,12 +45,12 @@ function renderAndroidApkFeatured(container) {
           <div class="featured-release-badges">
             <span class="badge-apk-avail">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
-              Official Release Available
+              Official Releases Available
             </span>
-            <span class="badge-apk-ver">v0.1.0-alpha</span>
-            <span class="badge-apk-avail" style="background:rgba(212,139,71,0.15); color:var(--accent-primary); border-color:rgba(212,139,71,0.3);">Android APK</span>
+            <span class="badge-apk-ver">v0.1.0</span>
+            <span class="badge-apk-avail" style="background:rgba(212,139,71,0.15); color:var(--accent-primary); border-color:rgba(212,139,71,0.3);">macOS DMG &amp; Android APK</span>
           </div>
-          <h2 class="featured-release-title">HotTea Browser for Android (Release APK)</h2>
+          <h2 class="featured-release-title">HotTea v0.1.0 — macOS DMG &amp; Android APK</h2>
         </div>
         <a href="${HOTTEA_CONFIG.githubUrl}" class="btn btn-secondary btn-sm" target="_blank" rel="noopener">
           View on GitHub
@@ -58,43 +58,48 @@ function renderAndroidApkFeatured(container) {
       </div>
 
       <p class="featured-release-desc">
-        The official Android Release APK for HotTea is built and ready for installation. Features the newly redesigned <strong>Glassmorphic UI System</strong> with floating <code>GlassDock</code> bottom navigation, direct Settings access, offline SQLite research vault, and native Android WebView.
+        Download official, production-ready release packages for <strong>macOS</strong> (Apple Disk Image <code>.dmg</code>) and <strong>Android</strong> (Package <code>.apk</code>). Built with the state-of-the-art <strong>Glassmorphic UI System</strong>, tab isolation, offline SQLite research vault, and native WebKit/WebView integration.
       </p>
 
       <div class="featured-release-meta">
         <div class="meta-chip">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-          <span>Package: <strong>app-release.apk</strong> (56 MB)</span>
+          <span>Mac DMG: <strong>HotTea.dmg</strong> (11 MB)</span>
         </div>
         <div class="meta-chip">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
-          <span>Target: <strong>Android 8.0+ (API 26+)</strong></span>
-        </div>
-        <div class="meta-chip">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-          <span>Arch: <strong>arm64-v8a / armeabi-v7a / x86_64</strong></span>
+          <span>Android APK: <strong>app-release.apk</strong> (56 MB)</span>
         </div>
         <div class="meta-chip">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-          <span>SHA-256: <code class="checksum-snippet" title="e09b7f45b5118df459debc1cf47a60a6ce1189653a682b8430a201f82277ca12">e09b7f45b5118df4...ca12</code></span>
+          <span>DMG SHA-256: <code class="checksum-snippet" title="9f9db6144584acf7f323ed555cc0f745867ec882ab06c3d70eac3f7c4fb1a68b">9f9db614...a68b</code></span>
+        </div>
+        <div class="meta-chip">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+          <span>APK SHA-256: <code class="checksum-snippet" title="e09b7f45b5118df459debc1cf47a60a6ce1189653a682b8430a201f82277ca12">e09b7f45...ca12</code></span>
         </div>
       </div>
 
       <div class="featured-release-actions">
-        <a href="downloads/app-release.apk" download="hottea-app-release.apk" class="btn btn-primary btn-lg" id="featured-apk-download-btn">
+        <a href="downloads/HotTea.dmg" download="HotTea.dmg" class="btn btn-primary btn-lg" id="featured-mac-download-btn">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
             <polyline points="7 10 12 15 17 10"></polyline>
             <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
-          Download Release APK (56 MB)
+          Download for Mac (DMG 11 MB)
         </a>
-        <button class="btn btn-secondary btn-lg copy-btn" data-clipboard="e09b7f45b5118df459debc1cf47a60a6ce1189653a682b8430a201f82277ca12">
-          Copy SHA-256
+        <a href="downloads/app-release.apk" download="hottea-app-release.apk" class="btn btn-secondary btn-lg" id="featured-apk-download-btn">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          Download Android APK (56 MB)
+        </a>
+        <button class="btn btn-secondary btn-lg copy-btn" data-clipboard="9f9db6144584acf7f323ed555cc0f745867ec882ab06c3d70eac3f7c4fb1a68b">
+          Copy DMG SHA-256
         </button>
-        <a href="#cli-panel-android" class="btn btn-secondary btn-lg">
-          ADB Installation Guide
-        </a>
       </div>
     </div>
   `;

@@ -1586,7 +1586,7 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: PreferredSize(
-        preferredSize: Size.fromHeight(54 + (activeTab.isLoading ? 2 : 0)),
+        preferredSize: Size.fromHeight(58 + (activeTab.isLoading ? 4 : 0)),
         child: ClipRect(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: GlassTheme.blurStandard, sigmaY: GlassTheme.blurStandard),

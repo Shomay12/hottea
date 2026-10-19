@@ -534,15 +534,19 @@ This builds the Flutter web application. It does not establish that native brows
 
 📦 Installation and Distribution
 
-HotTea is available for Android and in development for desktop platforms:
+HotTea is available for macOS and Android:
 
 | Platform | Status | Package / Format | Installation / Distribution |
 | :--- | :--- | :--- | :--- |
-| **Android** | **Available (APK)** | `app-release.apk` (~56 MB, API 26+) | Direct download from GitHub Releases & Website; sideload with `adb install -r app-release.apk` |
-| **macOS** | Source / Preview | DMG & Homebrew Cask (Planned) | `flutter run -d macos` |
+| **macOS** | **Available (DMG)** | `HotTea.dmg` (~11 MB, Apple Silicon arm64) | Direct download from Website & GitHub; open DMG and drag to Applications |
+| **Android** | **Available (APK)** | `app-release.apk` (~56 MB, API 26+) | Direct download from Website & GitHub; sideload with `adb install -r app-release.apk` |
 | **Linux** | Source / Preview | AppImage & Debian package (Planned) | `flutter run -d linux` |
 | **Windows** | Source / Preview | Native installer & WinGet (Planned) | `flutter run -d windows` |
 | **Web** | Live Preview | PWA / WASM Static Site | `flutter run -d chrome` or static host |
+
+### macOS Installation
+1. Download `HotTea.dmg` from the official repository or website.
+2. Open the disk image and drag **HotTea** to the **Applications** folder.
 
 ### Android APK Sideloading
 1. Download `app-release.apk` from the official repository or website.

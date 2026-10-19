@@ -88,6 +88,8 @@
             <ul class="docs-nav-list">
               <li><a href="#getting-started" class="docs-nav-link active">Getting Started</a></li>
               <li><a href="#architecture" class="docs-nav-link">Architecture &amp; Design</a></li>
+              <li><a href="#glass-ui" class="docs-nav-link">Glassmorphic UI System</a></li>
+              <li><a href="#android-release" class="docs-nav-link">Android Release (APK)</a></li>
             </ul>
           </div>
 
@@ -148,11 +150,79 @@
               HotTea enforces strict layer boundaries to decouple the user interface from platform-specific web rendering engines and storage mechanisms:
             </p>
             <ul>
-              <li><strong>UI Layer (<code>lib/main.dart</code>)</strong>: Flutter Material widgets with responsive desktop and mobile form factors.</li>
+              <li><strong>UI Layer (<code>lib/main.dart</code>)</strong>: Premium Glassmorphic Flutter interface with responsive desktop, tablet, and mobile layouts.</li>
+              <li><strong>Theme &amp; Brand Tokens (<code>lib/core/theme/</code>)</strong>: <code>GlassTheme</code>, <code>GlassDock</code>, <code>GlassSurface</code>, <code>AmbientCanvasBackground</code>, and the official vector <code>HotTeaLogo</code>.</li>
               <li><strong>Browser Domain (<code>lib/features/browser/domain/</code>)</strong>: Core abstractions including <code>BrowserEngine</code>, <code>BrowserTab</code>, <code>SearchEngine</code>, and <code>AddressBarParser</code>.</li>
-              <li><strong>Browser Data (<code>lib/features/browser/data/</code>)</strong>: Concrete platform engine implementations (<code>InAppBrowserEngine</code> with WebKit, and <code>WebFallbackEngine</code>).</li>
+              <li><strong>Browser Data (<code>lib/features/browser/data/</code>)</strong>: Concrete platform engine implementations (<code>InAppBrowserEngine</code> with WebKit/WebView, and <code>WebFallbackEngine</code>).</li>
               <li><strong>Persistence Layer (<code>lib/core/persistence/</code>)</strong>: <code>LocalPersistenceRepository</code> backed by SQLite (<code>sqflite_common_ffi</code> on desktop, <code>sqflite</code> on iOS/Android, and <code>sqflite_common_ffi_web</code> on Web).</li>
             </ul>
+          </section>
+
+          <!-- Glassmorphic UI System -->
+          <section id="glass-ui">
+            <h2>Glassmorphic UI System</h2>
+            <p>
+              HotTea delivers a state-of-the-art glassmorphism design across macOS, iOS, Android, Linux, and Windows, featuring ambient backdrop blurs, luminous amber highlights, and unified control docks:
+            </p>
+            <ul>
+              <li><strong>GlassDock Bottom Bar</strong>: A floating, frosted glass dock on mobile platforms housing quick-access navigation buttons (Back, Forward, New Tab, Tab Switcher, Settings, and More Actions).</li>
+              <li><strong>Integrated Settings Control</strong>: Direct access to browser preferences from both the primary mobile dock, the desktop top toolbar &amp; sidebar, and the frosted Action Sheet.</li>
+              <li><strong>Ambient Canvas Background</strong>: Multi-layered radial gradients emitting warm amber (<code>#D48B47</code>) and icy blue atmospheric glows behind all window content.</li>
+              <li><strong>Official HotTea Vector Identity</strong>: Precision SVG-rendered tea-cup icon (with steam trails and saucer) integrated natively into headers, modals, and brand badges.</li>
+              <li><strong>Frosted Action Sheets</strong>: High-blur (20px) modal overlays providing quick toggles for Private Mode, Desktop Site, Bookmarks, and in-place zoom controls.</li>
+            </ul>
+          </section>
+
+          <!-- Android Release (APK) -->
+          <section id="android-release">
+            <h2>Android Release (APK)</h2>
+            <p>
+              HotTea is officially packaged and available as a standalone Android application package (APK):
+            </p>
+            <table class="docs-table">
+              <thead>
+                <tr>
+                  <th>Property</th>
+                  <th>Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Package Name</strong></td>
+                  <td><code>com.hottea.browser</code></td>
+                </tr>
+                <tr>
+                  <td><strong>Artifact</strong></td>
+                  <td><code>app-release.apk</code></td>
+                </tr>
+                <tr>
+                  <td><strong>File Size</strong></td>
+                  <td>~56 MB (Optimized with R8 tree-shaking)</td>
+                </tr>
+                <tr>
+                  <td><strong>Min Android SDK</strong></td>
+                  <td>Android 8.0 Oreo (API Level 26)</td>
+                </tr>
+                <tr>
+                  <td><strong>Target Android SDK</strong></td>
+                  <td>Android 14 (API Level 34)</td>
+                </tr>
+                <tr>
+                  <td><strong>Architectures</strong></td>
+                  <td><code>arm64-v8a</code>, <code>armeabi-v7a</code>, <code>x86_64</code></td>
+                </tr>
+              </tbody>
+            </table>
+            <p>
+              To install HotTea on your Android device:
+            </p>
+            <ol>
+              <li>Download <code>app-release.apk</code> from the <a href="downloads.html">HotTea Downloads page</a> or latest GitHub Release.</li>
+              <li>Enable <em>"Install unknown apps"</em> in your Android Settings for your browser or file manager.</li>
+              <li>Open the downloaded APK to install, or deploy via Android Debug Bridge:
+                <pre><code>adb install -r app-release.apk</code></pre>
+              </li>
+            </ol>
           </section>
 
           <!-- Search Engine System -->

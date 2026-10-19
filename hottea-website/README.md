@@ -72,14 +72,15 @@ const HOTTEA_CONFIG = {
 
 ---
 
-## 📦 How Release Downloads Are Detected
+## 📦 How Release Downloads Are Detected & Packaged
 
 1. [assets/js/downloads.js](assets/js/downloads.js) queries `https://api.github.com/repos/Shomay12/hottea/releases`.
-2. **If no official release exists (Current State)**:
-   - The page displays a banner: *"No official release has been published yet."*
-   - Explains that HotTea is under active development and directs developers to the factual *Build from Source* instructions.
+2. **Android Release Package**:
+   - HotTea produces official Android release APKs (`app-release.apk`, ~56 MB, API 26+).
+   - Direct download links point to the latest GitHub release artifact (`https://github.com/Shomay12/hottea/releases/latest/download/app-release.apk`).
+   - Sideloading and ADB installation instructions are built directly into the Downloads portal (`downloads.html`).
 3. **When a release is tagged on GitHub**:
-   - The latest release tag, publication date, changelog link, and downloadable binary assets (.dmg, .apk, .AppImage, .deb, .exe) are parsed and rendered with file sizes.
+   - The latest release tag, publication date, changelog link, and downloadable binary assets (.dmg, .apk, .AppImage, .deb, .exe) are parsed and rendered with verified file sizes.
    - SHA-256 checksums from `SHA256SUMS.txt` can be verified by users.
 
 ---

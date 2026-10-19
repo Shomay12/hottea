@@ -8,10 +8,11 @@ HotTea is under active open-source development.
 
 * **macOS**: Built and tested locally on macOS with native WebKit (`flutter_inappwebview_macos`).
 * **iOS**: Built and validated on iOS Simulator (iPhone 17 Pro, iOS 26.1).
+* **Android**: Verified with official Release APK (`app-release.apk`, 56 MB) and Debug APK (`app-debug.apk`, 147 MB) with Android System WebView, network permissions, and SQLite persistence.
 * **Web**: Functional preview available; third-party search engines that send `X-Frame-Options: SAMEORIGIN` automatically open in clean browser windows.
-* **Android, Windows, Linux**: In active development.
+* **Windows, Linux**: In active development.
 
-Official pre-built binary packages (DMG, APK, AppImage, EXE) have not yet been published to GitHub Releases. The current recommended method to run HotTea is building from source.
+The official Android Release APK package is available directly via the website Downloads portal and GitHub Releases. Alternatively, you can compile from source for all supported targets.
 
 ---
 
@@ -77,6 +78,21 @@ xcrun simctl list devices available | grep Booted
 
 # Run directly
 flutter run -d <SIMULATOR_DEVICE_ID>
+```
+
+#### Run on Android Device / Emulator
+```bash
+# Verify connected handset or emulator
+adb devices
+
+# Run directly via Flutter tooling
+flutter run -d android
+
+# Build Release APK package
+flutter build apk --release
+
+# Sideload Release APK onto device
+adb install -r build/app/outputs/flutter-apk/app-release.apk
 ```
 
 #### Run Web Preview

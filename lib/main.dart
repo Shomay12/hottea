@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -15,6 +16,9 @@ import 'features/browser/domain/download_item.dart';
 import 'features/browser/domain/search_engine.dart';
 import 'features/research/data/webpage_extraction_service.dart';
 import 'core/utils/external_launcher.dart';
+import 'core/theme/glass_theme.dart';
+import 'core/theme/hottea_logo.dart';
+import 'core/theme/glass_components.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -42,11 +46,15 @@ class HotTeaApp extends StatelessWidget {
         useMaterial3: true,
         brightness: Brightness.dark,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFFD48B47), // Warm amber tea tone
+          seedColor: GlassTheme.accentTea, // Warm amber tea tone (#D48B47)
           brightness: Brightness.dark,
-          surface: const Color(0xFF16181D),
+          surface: GlassTheme.charcoal,
         ),
-        scaffoldBackgroundColor: const Color(0xFF0F1115),
+        scaffoldBackgroundColor: GlassTheme.backgroundDeep,
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+        ),
       ),
       home: HotTeaWorkspaceScreen(
         persistenceRepository: persistenceRepository,
@@ -1264,166 +1272,190 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
   void _showMobileActionSheet(BuildContext context, BrowserTab activeTab) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF16181D),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 36,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.white24,
-                      borderRadius: BorderRadius.circular(2),
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withAlpha(160),
+      isScrollControlled: true,
+      builder: (ctx) => GlassSurface(
+        color: GlassTheme.surfaceGlassModal,
+        blur: GlassTheme.blurModal,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        borderColor: GlassTheme.borderSubtle,
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  activeTab.currentTitle.isEmpty ? (activeTab.currentUrl?.host ?? 'HotTea Browser') : activeTab.currentTitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                ),
-                const SizedBox(height: 16),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    _buildActionChip(
-                      icon: _isCurrentUrlBookmarked ? Icons.star : Icons.star_border,
-                      label: _isCurrentUrlBookmarked ? 'Bookmarked' : 'Bookmark',
-                      color: _isCurrentUrlBookmarked ? Colors.amber : Colors.white70,
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        _toggleBookmark();
-                      },
-                    ),
-                    _buildActionChip(
-                      icon: Icons.copy_rounded,
-                      label: 'Copy URL',
-                      onTap: () {
-                        _copyCurrentUrl();
-                        Navigator.pop(ctx);
-                      },
-                    ),
-                    _buildActionChip(
-                      icon: Icons.note_add_outlined,
-                      label: 'Clip to Notes',
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        _clipActivePageToNotes();
-                      },
-                    ),
-                    _buildActionChip(
-                      icon: Icons.content_cut_outlined,
-                      label: 'Clip Evidence',
-                      color: const Color(0xFFD48B47),
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        _extractCurrentPageAndOpenClipModal();
-                      },
-                    ),
-                    _buildActionChip(
-                      icon: Icons.source_outlined,
-                      label: 'Research Notes',
-                      color: const Color(0xFFD48B47),
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        setState(() => _mobileBottomNavIndex = 3);
-                      },
-                    ),
-                    _buildActionChip(
-                      icon: Icons.find_in_page_outlined,
-                      label: 'Find in Page',
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        _toggleFindInPage();
-                      },
-                    ),
-                    _buildActionChip(
-                      icon: Icons.download_outlined,
-                      label: 'Downloads',
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        setState(() {
-                          _mobileBottomNavIndex = 0;
-                          _isRightPaneVisible = true;
-                          _activeRightTab = 'downloads';
-                        });
-                      },
-                    ),
-                    _buildActionChip(
-                      icon: Icons.shield_outlined,
-                      label: 'Privacy Audit',
-                      color: Colors.greenAccent,
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        _showPrivacyDisclosureDialog();
-                      },
-                    ),
-                    _buildActionChip(
-                      icon: Icons.auto_awesome_outlined,
-                      label: 'AI Workspace',
-                      color: const Color(0xFFD48B47),
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        setState(() {
-                          _mobileBottomNavIndex = 5;
-                        });
-                      },
-                    ),
-                  ],
-                ),
-                const Divider(height: 24, color: Colors.white12),
-                // Zoom & Cache controls row
-                Row(
-                  children: [
-                    const Icon(Icons.zoom_in, size: 16, color: Colors.white54),
-                    const SizedBox(width: 6),
-                    const Text('Zoom', style: TextStyle(fontSize: 12, color: Colors.white70)),
-                    const Spacer(),
-                    IconButton(
-                      visualDensity: VisualDensity.compact,
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                      icon: const Icon(Icons.remove, size: 14),
-                      onPressed: () => activeTab.zoomOut(),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: Text(
-                        '${(activeTab.zoomLevel * 100).round()}%',
-                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      const HotTeaLogo(size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          activeTab.currentTitle.isEmpty ? (activeTab.currentUrl?.host ?? 'HotTea') : activeTab.currentTitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
                       ),
-                    ),
-                    IconButton(
-                      visualDensity: VisualDensity.compact,
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                      icon: const Icon(Icons.add, size: 14),
-                      onPressed: () => activeTab.zoomIn(),
-                    ),
-                    const SizedBox(width: 4),
-                    TextButton(
-                      style: TextButton.styleFrom(
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      _buildActionChip(
+                        icon: _isCurrentUrlBookmarked ? Icons.star : Icons.star_border,
+                        label: _isCurrentUrlBookmarked ? 'Bookmarked' : 'Bookmark',
+                        color: _isCurrentUrlBookmarked ? Colors.amber : Colors.white70,
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          _toggleBookmark();
+                        },
+                      ),
+                      _buildActionChip(
+                        icon: Icons.copy_rounded,
+                        label: 'Copy URL',
+                        onTap: () {
+                          _copyCurrentUrl();
+                          Navigator.pop(ctx);
+                        },
+                      ),
+                      _buildActionChip(
+                        icon: Icons.note_add_outlined,
+                        label: 'Clip to Notes',
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          _clipActivePageToNotes();
+                        },
+                      ),
+                      _buildActionChip(
+                        icon: Icons.content_cut_outlined,
+                        label: 'Clip Evidence',
+                        color: GlassTheme.accentTea,
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          _extractCurrentPageAndOpenClipModal();
+                        },
+                      ),
+                      _buildActionChip(
+                        icon: Icons.source_outlined,
+                        label: 'Research Notes',
+                        color: GlassTheme.accentTea,
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          setState(() => _mobileBottomNavIndex = 3);
+                        },
+                      ),
+                      _buildActionChip(
+                        icon: Icons.find_in_page_outlined,
+                        label: 'Find in Page',
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          _toggleFindInPage();
+                        },
+                      ),
+                      _buildActionChip(
+                        icon: Icons.download_outlined,
+                        label: 'Downloads',
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          setState(() {
+                            _mobileBottomNavIndex = 0;
+                            _isRightPaneVisible = true;
+                            _activeRightTab = 'downloads';
+                          });
+                        },
+                      ),
+                      _buildActionChip(
+                        icon: Icons.shield_outlined,
+                        label: 'Privacy Audit',
+                        color: Colors.greenAccent,
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          _showPrivacyDisclosureDialog();
+                        },
+                      ),
+                      _buildActionChip(
+                        icon: Icons.auto_awesome_outlined,
+                        label: 'AI Workspace',
+                        color: GlassTheme.accentTea,
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          setState(() {
+                            _mobileBottomNavIndex = 5;
+                          });
+                        },
+                      ),
+                      _buildActionChip(
+                        icon: Icons.settings_outlined,
+                        label: 'Settings',
+                        color: Colors.white,
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          setState(() {
+                            _mobileBottomNavIndex = 4;
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                  const Divider(height: 24, color: Colors.white12),
+                  // Zoom & Cache controls row
+                  Row(
+                    children: [
+                      const Icon(Icons.zoom_in, size: 16, color: Colors.white54),
+                      const SizedBox(width: 6),
+                      const Text('Zoom', style: TextStyle(fontSize: 12, color: Colors.white70)),
+                      const Spacer(),
+                      IconButton(
                         visualDensity: VisualDensity.compact,
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                        icon: const Icon(Icons.remove, size: 14),
+                        onPressed: () => activeTab.zoomOut(),
                       ),
-                      onPressed: () => activeTab.resetZoom(),
-                      child: const Text('Reset', style: TextStyle(fontSize: 11)),
-                    ),
-                  ],
-                ),
-              ],
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: Text(
+                          '${(activeTab.zoomLevel * 100).round()}%',
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                        icon: const Icon(Icons.add, size: 14),
+                        onPressed: () => activeTab.zoomIn(),
+                      ),
+                      const SizedBox(width: 4),
+                      TextButton(
+                        style: TextButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        ),
+                        onPressed: () => activeTab.resetZoom(),
+                        child: const Text('Reset', style: TextStyle(fontSize: 11, color: GlassTheme.accentTea)),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -1441,18 +1473,33 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
       onTap: onTap,
       borderRadius: BorderRadius.circular(10),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
         decoration: BoxDecoration(
-          color: const Color(0xFF1F232D),
+          color: GlassTheme.surfaceGlass,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white12),
+          border: Border.all(
+            color: color == GlassTheme.accentTea
+                ? GlassTheme.accentTea.withAlpha(90)
+                : GlassTheme.borderSubtle,
+            width: 1.0,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha(35),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(icon, size: 16, color: color),
             const SizedBox(width: 6),
-            Text(label, style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w500)),
+            Text(
+              label,
+              style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w600),
+            ),
           ],
         ),
       ),
@@ -1537,156 +1584,211 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
     }
 
     return Scaffold(
-      appBar: AppBar(
-        toolbarHeight: 52,
-        backgroundColor: const Color(0xFF16181D),
-        elevation: 0,
-        titleSpacing: 8,
-        title: Row(
-          children: [
-            _buildSearchEngineMenuButton(compact: true),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Container(
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF0F1115),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: activeTab.isPrivate ? Colors.purpleAccent.withAlpha(120) : Colors.white12,
-                    ),
-                  ),
-                  child: TextField(
-                    controller: _urlController,
-                    focusNode: _urlFocusNode,
-                    onSubmitted: (value) => _onNavigate(value),
-                    style: const TextStyle(fontSize: 13),
-                    decoration: InputDecoration(
-                      prefixIcon: activeTab.isPrivate
-                          ? const Icon(Icons.shield, size: 14, color: Colors.purpleAccent)
-                          : const Icon(Icons.lock_outline, size: 13, color: Colors.white38),
-                      hintText: 'Search or enter URL',
-                      hintStyle: const TextStyle(color: Colors.white30, fontSize: 13),
-                      suffixIcon: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (_isCurrentUrlBookmarked)
-                            const Icon(Icons.star, size: 15, color: Colors.amber),
-                          IconButton(
-                            icon: const Icon(Icons.arrow_forward, size: 15),
-                            onPressed: () => _onNavigate(),
-                          ),
-                        ],
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                      border: InputBorder.none,
-                      isDense: true,
-                    ),
-                  ),
-                ),
+      backgroundColor: Colors.transparent,
+      appBar: PreferredSize(
+        preferredSize: Size.fromHeight(54 + (activeTab.isLoading ? 2 : 0)),
+        child: ClipRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: GlassTheme.blurStandard, sigmaY: GlassTheme.blurStandard),
+            child: Container(
+              padding: EdgeInsets.only(
+                top: MediaQuery.paddingOf(context).top + 4,
+                left: 10,
+                right: 10,
+                bottom: 6,
               ),
-              const SizedBox(width: 4),
-              IconButton(
-                icon: activeTab.isLoading
-                    ? const Icon(Icons.close, size: 18, color: Colors.orangeAccent)
-                    : const Icon(Icons.refresh, size: 18),
-                tooltip: activeTab.isLoading ? 'Stop' : 'Reload',
-                visualDensity: VisualDensity.compact,
-                onPressed: () {
-                  if (activeTab.isLoading) {
-                    activeTab.stopLoading();
-                  } else {
-                    activeTab.reload();
-                  }
-                },
+              decoration: const BoxDecoration(
+                color: GlassTheme.surfaceGlassDense,
+                border: Border(bottom: BorderSide(color: GlassTheme.borderSubtle)),
               ),
-            ],
-          ),
-          bottom: activeTab.isLoading
-              ? PreferredSize(
-                  preferredSize: const Size.fromHeight(2),
-                  child: LinearProgressIndicator(
-                    value: activeTab.progress > 0 ? activeTab.progress : null,
-                    minHeight: 2,
-                    backgroundColor: Colors.transparent,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      activeTab.isPrivate ? Colors.purpleAccent : const Color(0xFFD48B47),
-                    ),
-                  ),
-                )
-              : null,
-        ),
-      body: SafeArea(
-        top: false,
-        bottom: true,
-        child: _isMobileTabSwitcherOpen
-            ? _buildMobileTabOverview()
-            : Column(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (_isFindInPageVisible) _buildFindInPageBar(activeTab),
-                  Expanded(
-                    child: _buildViewportContent(activeTab),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: GlassTheme.surfaceGlass,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: GlassTheme.borderSubtle),
+                        ),
+                        child: _buildSearchEngineMenuButton(compact: true),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Container(
+                          height: 38,
+                          decoration: BoxDecoration(
+                            color: GlassTheme.surfaceGlassDark,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: activeTab.isPrivate
+                                  ? Colors.purpleAccent.withAlpha(140)
+                                  : (_urlFocusNode.hasFocus ? GlassTheme.accentIcyBlue.withAlpha(160) : GlassTheme.borderSubtle),
+                              width: 1.0,
+                            ),
+                            boxShadow: _urlFocusNode.hasFocus
+                                ? const [
+                                    BoxShadow(
+                                      color: GlassTheme.accentIcyBlueGlow,
+                                      blurRadius: 10,
+                                      spreadRadius: 1,
+                                    ),
+                                  ]
+                                : null,
+                          ),
+                          child: TextField(
+                            controller: _urlController,
+                            focusNode: _urlFocusNode,
+                            onSubmitted: (value) => _onNavigate(value),
+                            style: const TextStyle(fontSize: 13, color: Colors.white),
+                            decoration: InputDecoration(
+                              prefixIcon: activeTab.isPrivate
+                                  ? const Icon(Icons.shield, size: 14, color: Colors.purpleAccent)
+                                  : const Icon(Icons.lock_outline, size: 13, color: Colors.white38),
+                              hintText: 'Search or enter URL',
+                              hintStyle: const TextStyle(color: Colors.white30, fontSize: 13),
+                              suffixIcon: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (_isCurrentUrlBookmarked)
+                                    const Icon(Icons.star, size: 15, color: Colors.amber),
+                                  IconButton(
+                                    icon: const Icon(Icons.arrow_forward, size: 15, color: GlassTheme.accentTea),
+                                    onPressed: () => _onNavigate(),
+                                  ),
+                                ],
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(vertical: 9),
+                              border: InputBorder.none,
+                              isDense: true,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      IconButton(
+                        icon: activeTab.isLoading
+                            ? const Icon(Icons.close, size: 18, color: Colors.orangeAccent)
+                            : const Icon(Icons.refresh, size: 18),
+                        tooltip: activeTab.isLoading ? 'Stop' : 'Reload',
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () {
+                          if (activeTab.isLoading) {
+                            activeTab.stopLoading();
+                          } else {
+                            activeTab.reload();
+                          }
+                        },
+                      ),
+                    ],
                   ),
+                  if (activeTab.isLoading)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: LinearProgressIndicator(
+                        value: activeTab.progress > 0 ? activeTab.progress : null,
+                        minHeight: 2,
+                        backgroundColor: Colors.transparent,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          activeTab.isPrivate ? Colors.purpleAccent : GlassTheme.accentTea,
+                        ),
+                      ),
+                    ),
                 ],
               ),
+            ),
+          ),
+        ),
       ),
-      bottomNavigationBar: _isMobileTabSwitcherOpen
-          ? null
-          : Container(
-              height: 50,
-              decoration: const BoxDecoration(
-                color: Color(0xFF13151A),
-                border: Border(top: BorderSide(color: Colors.white10)),
-              ),
-              child: SafeArea(
-                top: false,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+      body: AmbientCanvasBackground(
+        child: SafeArea(
+          top: false,
+          bottom: true,
+          child: _isMobileTabSwitcherOpen
+              ? _buildMobileTabOverview()
+              : Column(
                   children: [
-                    IconButton(
-                      icon: const Icon(Icons.arrow_back_ios_new, size: 18),
-                      tooltip: 'Back',
-                      onPressed: activeTab.canGoBack ? () => activeTab.goBack() : null,
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.arrow_forward_ios, size: 18),
-                      tooltip: 'Forward',
-                      onPressed: activeTab.canGoForward ? () => activeTab.goForward() : null,
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.add, size: 22, color: Color(0xFFD48B47)),
-                      tooltip: 'New Tab',
-                      onPressed: () => _createNewTab(),
-                    ),
-                    InkWell(
-                      onTap: () => setState(() => _isMobileTabSwitcherOpen = true),
-                      borderRadius: BorderRadius.circular(6),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                        decoration: BoxDecoration(
-                          border: Border.all(
-                            color: activeTab.isPrivate ? Colors.purpleAccent : const Color(0xFFD48B47),
-                            width: 1.5,
-                          ),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          '${_tabs.length}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: activeTab.isPrivate ? Colors.purpleAccent : const Color(0xFFD48B47),
-                          ),
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.more_horiz, size: 22),
-                      tooltip: 'More Actions',
-                      onPressed: () => _showMobileActionSheet(context, activeTab),
+                    if (_isFindInPageVisible) _buildFindInPageBar(activeTab),
+                    Expanded(
+                      child: _buildViewportContent(activeTab),
                     ),
                   ],
                 ),
+        ),
+      ),
+      bottomNavigationBar: _isMobileTabSwitcherOpen
+          ? null
+          : GlassDock(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back_ios_new, size: 18),
+                    tooltip: 'Back',
+                    onPressed: activeTab.canGoBack ? () => activeTab.goBack() : null,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.arrow_forward_ios, size: 18),
+                    tooltip: 'Forward',
+                    onPressed: activeTab.canGoForward ? () => activeTab.goForward() : null,
+                  ),
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: GlassTheme.accentTea,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: GlassTheme.accentTea.withAlpha(90),
+                          blurRadius: 10,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.add, size: 20, color: Colors.black),
+                      tooltip: 'New Tab',
+                      padding: EdgeInsets.zero,
+                      onPressed: () => _createNewTab(),
+                    ),
+                  ),
+                  InkWell(
+                    onTap: () => setState(() => _isMobileTabSwitcherOpen = true),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: activeTab.isPrivate ? Colors.purpleAccent.withAlpha(30) : GlassTheme.accentTea.withAlpha(30),
+                        border: Border.all(
+                          color: activeTab.isPrivate ? Colors.purpleAccent : GlassTheme.accentTea,
+                          width: 1.5,
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '${_tabs.length}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: activeTab.isPrivate ? Colors.purpleAccent : GlassTheme.accentTea,
+                        ),
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.settings_outlined, size: 20),
+                    tooltip: 'Settings',
+                    onPressed: () => setState(() => _mobileBottomNavIndex = 4),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.more_horiz, size: 22),
+                    tooltip: 'More Actions',
+                    onPressed: () => _showMobileActionSheet(context, activeTab),
+                  ),
+                ],
               ),
             ),
     );
@@ -1694,8 +1796,9 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
 
   Widget _buildMobileSecondaryScreen({required String title, required Widget body}) {
     return Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF16181D),
+        backgroundColor: GlassTheme.surfaceGlassDense,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -1704,23 +1807,33 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
         ),
         title: Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
       ),
-      body: SafeArea(child: body),
-      bottomNavigationBar: BottomNavigationBar(
-        backgroundColor: const Color(0xFF13151A),
-        selectedItemColor: const Color(0xFFD48B47),
-        unselectedItemColor: Colors.white54,
-        currentIndex: _mobileBottomNavIndex.clamp(0, 4),
-        type: BottomNavigationBarType.fixed,
-        selectedFontSize: 11,
-        unselectedFontSize: 11,
-        onTap: (index) => setState(() => _mobileBottomNavIndex = index),
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.language), label: 'Browser'),
-          BottomNavigationBarItem(icon: Icon(Icons.bookmarks_outlined), label: 'Bookmarks'),
-          BottomNavigationBarItem(icon: Icon(Icons.history), label: 'History'),
-          BottomNavigationBarItem(icon: Icon(Icons.note_alt_outlined), label: 'Notes'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings_outlined), label: 'Settings'),
-        ],
+      body: AmbientCanvasBackground(child: SafeArea(child: body)),
+      bottomNavigationBar: Container(
+        decoration: const BoxDecoration(
+          color: GlassTheme.surfaceGlassDense,
+          border: Border(top: BorderSide(color: GlassTheme.borderSubtle)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: BottomNavigationBar(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            selectedItemColor: GlassTheme.accentTea,
+            unselectedItemColor: Colors.white54,
+            currentIndex: _mobileBottomNavIndex.clamp(0, 4),
+            type: BottomNavigationBarType.fixed,
+            selectedFontSize: 11,
+            unselectedFontSize: 11,
+            onTap: (index) => setState(() => _mobileBottomNavIndex = index),
+            items: const [
+              BottomNavigationBarItem(icon: Icon(Icons.language), label: 'Browser'),
+              BottomNavigationBarItem(icon: Icon(Icons.bookmarks_outlined), label: 'Bookmarks'),
+              BottomNavigationBarItem(icon: Icon(Icons.history), label: 'History'),
+              BottomNavigationBarItem(icon: Icon(Icons.note_alt_outlined), label: 'Notes'),
+              BottomNavigationBarItem(icon: Icon(Icons.settings_outlined), label: 'Settings'),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1728,14 +1841,14 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
   // --- MOBILE TAB OVERVIEW (Card Switcher) ---
   Widget _buildMobileTabOverview() {
     return Container(
-      color: const Color(0xFF0F1115),
+      color: GlassTheme.backgroundDeep,
       child: Column(
         children: [
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: const BoxDecoration(
-              color: Color(0xFF16181D),
-              border: Border(bottom: BorderSide(color: Colors.white12)),
+              color: GlassTheme.surfaceGlassDense,
+              border: Border(bottom: BorderSide(color: GlassTheme.borderSubtle)),
             ),
             child: Row(
               children: [
@@ -1746,7 +1859,7 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
                 const Spacer(),
                 TextButton(
                   onPressed: () => setState(() => _isMobileTabSwitcherOpen = false),
-                  child: const Text('Done', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFD48B47))),
+                  child: const Text('Done', style: TextStyle(fontWeight: FontWeight.bold, color: GlassTheme.accentTea)),
                 ),
               ],
             ),
@@ -1770,7 +1883,7 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
                     final isPrivate = tab.isPrivate;
                     final borderColor = isPrivate
                         ? Colors.purpleAccent
-                        : (isActive ? const Color(0xFFD48B47) : Colors.white12);
+                        : (isActive ? GlassTheme.accentTea : GlassTheme.borderSubtle);
 
                     return InkWell(
                       onTap: () {
@@ -1782,11 +1895,11 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
                         });
                         _checkCurrentUrlBookmarked();
                       },
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(GlassTheme.radiusMd),
                       child: Container(
                         decoration: BoxDecoration(
-                          color: const Color(0xFF16181D),
-                          borderRadius: BorderRadius.circular(12),
+                          color: GlassTheme.surfaceGlass,
+                          borderRadius: BorderRadius.circular(GlassTheme.radiusMd),
                           border: Border.all(color: borderColor, width: isActive ? 2 : 1),
                         ),
                         padding: const EdgeInsets.all(10),
@@ -1831,7 +1944,7 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
                             Text(
                               tab.currentUrl?.host.isNotEmpty == true
                                   ? tab.currentUrl!.host
-                                  : 'about:blank',
+                                  : 'HotTea',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(fontSize: 10, color: Colors.white38),
@@ -1847,7 +1960,10 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
           ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            color: const Color(0xFF16181D),
+            decoration: const BoxDecoration(
+              color: GlassTheme.surfaceGlassDense,
+              border: Border(top: BorderSide(color: GlassTheme.borderSubtle)),
+            ),
             child: Row(
               children: [
                 IconButton(
@@ -1858,7 +1974,7 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
                 const Spacer(),
                 ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFD48B47),
+                    backgroundColor: GlassTheme.accentTea,
                     foregroundColor: Colors.black,
                   ),
                   icon: const Icon(Icons.add, size: 16),
@@ -1886,14 +2002,23 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
-            width: 52,
-            height: 52,
+            width: 56,
+            height: 56,
             decoration: BoxDecoration(
-              color: const Color(0xFFD48B47).withAlpha(35),
+              color: GlassTheme.accentTea.withAlpha(25),
               shape: BoxShape.circle,
-              border: Border.all(color: const Color(0xFFD48B47).withAlpha(120), width: 1.5),
+              border: Border.all(color: GlassTheme.accentTea.withAlpha(120), width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: GlassTheme.accentTea.withAlpha(45),
+                  blurRadius: 16,
+                  spreadRadius: 1,
+                ),
+              ],
             ),
-            child: const Icon(Icons.coffee, size: 26, color: Color(0xFFD48B47)),
+            child: const Center(
+              child: HotTeaLogo(size: 28),
+            ),
           ),
           const SizedBox(height: 12),
           const Text(
@@ -1909,9 +2034,9 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
           Container(
             height: 44,
             decoration: BoxDecoration(
-              color: const Color(0xFF16181D),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFD48B47).withAlpha(80)),
+              color: GlassTheme.surfaceGlassDark,
+              borderRadius: BorderRadius.circular(GlassTheme.radiusSm),
+              border: Border.all(color: GlassTheme.accentTea.withAlpha(90)),
             ),
             child: TextField(
               style: const TextStyle(fontSize: 13),
@@ -1971,18 +2096,18 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
   Widget _buildMobileQuickCard(String title, IconData icon, String url) {
     return InkWell(
       onTap: () => _activeTab.loadUrl(Uri.parse(url)),
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(GlassTheme.radiusSm),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
-          color: const Color(0xFF16181D),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.white12),
+          color: GlassTheme.surfaceGlass,
+          borderRadius: BorderRadius.circular(GlassTheme.radiusSm),
+          border: Border.all(color: GlassTheme.borderSubtle),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 16, color: const Color(0xFFD48B47)),
+            Icon(icon, size: 16, color: GlassTheme.accentTea),
             const SizedBox(width: 6),
             Text(title, style: const TextStyle(fontSize: 12, color: Colors.white)),
           ],
@@ -1994,90 +2119,53 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
   // --- DESKTOP SCREEN ARCHITECTURE (macOS, Linux, Windows, Web) ---
   Widget _buildDesktopScaffold(BuildContext context, BrowserTab activeTab, BrowserPlatformCapabilities capabilities) {
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF16181D),
-        elevation: 0,
-        titleSpacing: 8,
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: const Color(0xFFD48B47).withAlpha(40),
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: const Color(0xFFD48B47).withAlpha(100)),
+      backgroundColor: Colors.transparent,
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(89),
+        child: ClipRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: GlassTheme.blurStandard, sigmaY: GlassTheme.blurStandard),
+            child: Container(
+              decoration: const BoxDecoration(
+                color: GlassTheme.surfaceGlassDense,
+                border: Border(bottom: BorderSide(color: GlassTheme.borderSubtle)),
               ),
-              child: const Row(
+              child: Column(
                 children: [
-                  Icon(Icons.coffee, size: 16, color: Color(0xFFD48B47)),
-                  SizedBox(width: 6),
-                  Text(
-                    'HotTea',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: Color(0xFFD48B47),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            IconButton(
-              icon: const Icon(Icons.arrow_back, size: 18),
-              tooltip: 'Back',
-              visualDensity: VisualDensity.compact,
-              onPressed: activeTab.canGoBack ? () => activeTab.goBack() : null,
-            ),
-            IconButton(
-              icon: const Icon(Icons.arrow_forward, size: 18),
-              tooltip: 'Forward',
-              visualDensity: VisualDensity.compact,
-              onPressed: activeTab.canGoForward ? () => activeTab.goForward() : null,
-            ),
-            IconButton(
-              icon: activeTab.isLoading
-                  ? const Icon(Icons.close, size: 18, color: Colors.orangeAccent)
-                  : const Icon(Icons.refresh, size: 18),
-              tooltip: activeTab.isLoading ? 'Stop' : 'Reload',
-              visualDensity: VisualDensity.compact,
-              onPressed: () {
-                if (activeTab.isLoading) {
-                  activeTab.stopLoading();
-                } else {
-                  activeTab.reload();
-                }
-              },
-            ),
-            const SizedBox(width: 4),
-            Expanded(
-              child: Container(
-                height: 36,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0F1115),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: activeTab.isPrivate ? Colors.purpleAccent.withAlpha(120) : Colors.white12,
-                  ),
-                ),
-                child: TextField(
-                  controller: _urlController,
-                  focusNode: _urlFocusNode,
-                  onSubmitted: (value) => _onNavigate(value),
-                  style: const TextStyle(fontSize: 13),
-                  decoration: InputDecoration(
-                    prefixIcon: Row(
-                      mainAxisSize: MainAxisSize.min,
+                  // Upper navigation toolbar
+                  Container(
+                    height: 50,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Row(
                       children: [
-                        if (activeTab.isPrivate)
-                          const Padding(
-                            padding: EdgeInsets.only(left: 6, right: 2),
-                            child: Tooltip(
-                              message: 'Private / Incognito Tab',
-                              child: Icon(Icons.shield, size: 14, color: Colors.purpleAccent),
-                            ),
-                          ),
-                        _buildSearchEngineMenuButton(),
+                        const HotTeaBrandBadge(showBadge: true),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          icon: const Icon(Icons.arrow_back, size: 18),
+                          tooltip: 'Back',
+                          visualDensity: VisualDensity.compact,
+                          onPressed: activeTab.canGoBack ? () => activeTab.goBack() : null,
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.arrow_forward, size: 18),
+                          tooltip: 'Forward',
+                          visualDensity: VisualDensity.compact,
+                          onPressed: activeTab.canGoForward ? () => activeTab.goForward() : null,
+                        ),
+                        IconButton(
+                          icon: activeTab.isLoading
+                              ? const Icon(Icons.close, size: 18, color: Colors.orangeAccent)
+                              : const Icon(Icons.refresh, size: 18),
+                          tooltip: activeTab.isLoading ? 'Stop' : 'Reload',
+                          visualDensity: VisualDensity.compact,
+                          onPressed: () {
+                            if (activeTab.isLoading) {
+                              activeTab.stopLoading();
+                            } else {
+                              activeTab.reload();
+                            }
+                          },
+                        ),
                         IconButton(
                           icon: Icon(
                             _isCurrentUrlBookmarked ? Icons.star : Icons.star_border,
@@ -2088,298 +2176,390 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
                           visualDensity: VisualDensity.compact,
                           onPressed: _toggleBookmark,
                         ),
-                        IconButton(
-                          icon: _isExtractingPage
-                              ? const SizedBox(
-                                  width: 14,
-                                  height: 14,
-                                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFD48B47)),
-                                )
-                              : const Icon(
-                                  Icons.content_cut_outlined,
-                                  size: 17,
-                                  color: Color(0xFFD48B47),
-                                ),
-                          tooltip: 'Clip Evidence from Page',
-                          visualDensity: VisualDensity.compact,
-                          onPressed: _isExtractingPage ? null : _extractCurrentPageAndOpenClipModal,
-                        ),
-                      ],
-                    ),
-                    hintText: 'Search with ${_selectedSearchEngine.name} or enter URL',
-                    hintStyle: const TextStyle(color: Colors.white30, fontSize: 13),
-                    suffixIcon: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.copy_rounded, size: 14, color: Colors.white54),
-                          tooltip: 'Copy URL',
-                          visualDensity: VisualDensity.compact,
-                          onPressed: _copyCurrentUrl,
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.arrow_forward, size: 15),
-                          onPressed: _onNavigate,
-                          tooltip: 'Navigate or Search',
-                        ),
-                      ],
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                    border: InputBorder.none,
-                    isDense: true,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: Icon(
-              _isFindInPageVisible ? Icons.find_in_page : Icons.find_in_page_outlined,
-              size: 20,
-              color: _isFindInPageVisible ? const Color(0xFFD48B47) : null,
-            ),
-            tooltip: 'Find in Page (Cmd+F)',
-            onPressed: _toggleFindInPage,
-          ),
-          IconButton(
-            icon: const Icon(Icons.note_add_outlined, size: 20),
-            tooltip: 'Clip to Notes',
-            onPressed: _clipActivePageToNotes,
-          ),
-          IconButton(
-            icon: const Icon(Icons.security, color: Colors.greenAccent, size: 20),
-            tooltip: 'Privacy Audit',
-            onPressed: _showPrivacyDisclosureDialog,
-          ),
-          IconButton(
-            icon: Icon(
-              _isRightPaneVisible ? Icons.view_sidebar : Icons.view_sidebar_outlined,
-              size: 20,
-            ),
-            tooltip: 'Toggle Research Workspace',
-            onPressed: () {
-              setState(() {
-                _isRightPaneVisible = !_isRightPaneVisible;
-              });
-            },
-          ),
-          const SizedBox(width: 8),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(36),
-          child: Column(
-            children: [
-              Container(
-                height: 34,
-                color: const Color(0xFF13151A),
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: _tabs.length,
-                        separatorBuilder: (context, index) => const SizedBox(width: 4),
-                        itemBuilder: (context, index) {
-                          final tab = _tabs[index];
-                          final isActive = index == _activeTabIndex;
-                          final isPrivate = tab.isPrivate;
-                          final accentColor = isPrivate ? Colors.purpleAccent : const Color(0xFFD48B47);
-
-                          return InkWell(
-                            onTap: () {
-                              setState(() {
-                                _activeTabIndex = index;
-                                final cur = tab.currentUrl?.toString() ?? '';
-                                _urlController.text = cur == 'about:blank' ? '' : cur;
-                              });
-                              _checkCurrentUrlBookmarked();
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10),
-                              constraints: const BoxConstraints(maxWidth: 170),
-                              decoration: BoxDecoration(
-                                color: isActive ? const Color(0xFF0B0D11) : Colors.transparent,
-                                borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
-                                border: Border(
-                                  top: BorderSide(
-                                    color: isActive ? accentColor : Colors.transparent,
-                                    width: 2,
-                                  ),
-                                ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Container(
+                            height: 38,
+                            decoration: BoxDecoration(
+                              color: GlassTheme.surfaceGlassDark,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: activeTab.isPrivate
+                                    ? Colors.purpleAccent.withAlpha(140)
+                                    : (_urlFocusNode.hasFocus ? GlassTheme.accentIcyBlue.withAlpha(160) : GlassTheme.borderSubtle),
+                                width: 1.0,
                               ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  if (isPrivate) ...[
-                                    const Icon(Icons.shield, size: 12, color: Colors.purpleAccent),
-                                    const SizedBox(width: 4),
-                                  ],
-                                  Flexible(
-                                    child: Text(
-                                      tab.currentTitle.isEmpty
-                                          ? (isPrivate ? 'Private Tab' : 'New Tab')
-                                          : tab.currentTitle,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-                                        color: isActive ? Colors.white : Colors.white60,
+                              boxShadow: _urlFocusNode.hasFocus
+                                  ? const [
+                                      BoxShadow(
+                                        color: GlassTheme.accentIcyBlueGlow,
+                                        blurRadius: 10,
+                                        spreadRadius: 1,
                                       ),
-                                    ),
-                                  ),
-                                  if (_tabs.length > 1) ...[
-                                    const SizedBox(width: 4),
-                                    InkWell(
-                                      onTap: () => _closeTab(index),
-                                      child: const Icon(Icons.close, size: 14, color: Colors.white54),
+                                    ]
+                                  : null,
+                            ),
+                            child: TextField(
+                              controller: _urlController,
+                              focusNode: _urlFocusNode,
+                              onSubmitted: (value) => _onNavigate(value),
+                              style: const TextStyle(fontSize: 13, color: Colors.white),
+                              decoration: InputDecoration(
+                                prefixIconConstraints: const BoxConstraints(minWidth: 40, maxHeight: 36),
+                                prefixIcon: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (activeTab.isPrivate)
+                                      const Padding(
+                                        padding: EdgeInsets.only(left: 8, right: 2),
+                                        child: Tooltip(
+                                          message: 'Private / Incognito Tab',
+                                          child: Icon(Icons.shield, size: 14, color: Colors.purpleAccent),
+                                        ),
+                                      ),
+                                    Padding(
+                                      padding: const EdgeInsets.only(left: 6, right: 4),
+                                      child: _buildSearchEngineMenuButton(compact: true),
                                     ),
                                   ],
-                                ],
+                                ),
+                                hintText: 'Search with ${_selectedSearchEngine.name} or enter URL',
+                                hintStyle: const TextStyle(color: Colors.white30, fontSize: 13),
+                                suffixIconConstraints: const BoxConstraints(minWidth: 50, maxHeight: 36),
+                                suffixIcon: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.copy_rounded, size: 14, color: Colors.white54),
+                                      tooltip: 'Copy URL',
+                                      visualDensity: VisualDensity.compact,
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                                      onPressed: _copyCurrentUrl,
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.arrow_forward, size: 15, color: GlassTheme.accentTea),
+                                      onPressed: _onNavigate,
+                                      tooltip: 'Navigate or Search',
+                                      visualDensity: VisualDensity.compact,
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                                    ),
+                                    const SizedBox(width: 6),
+                                  ],
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(vertical: 9),
+                                border: InputBorder.none,
+                                isDense: true,
                               ),
                             ),
-                          );
-                        },
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.add, size: 16),
-                      tooltip: 'New Tab',
-                      onPressed: () => _createNewTab(),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.shield_outlined, size: 15, color: Colors.purpleAccent),
-                      tooltip: 'New Private Tab (Cmd+Shift+N)',
-                      onPressed: () => _createNewTab(null, true),
-                    ),
-                  ],
-                ),
-              ),
-              if (activeTab.isLoading)
-                LinearProgressIndicator(
-                  value: activeTab.progress > 0 ? activeTab.progress : null,
-                  minHeight: 2,
-                  backgroundColor: Colors.transparent,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    activeTab.isPrivate ? Colors.purpleAccent : const Color(0xFFD48B47),
-                  ),
-                )
-              else
-                const SizedBox(height: 2),
-            ],
-          ),
-        ),
-      ),
-      body: Row(
-        children: [
-          Expanded(
-            flex: _isRightPaneVisible ? 6 : 10,
-            child: Container(
-              color: const Color(0xFF0B0D11),
-              child: Column(
-                children: [
-                  if (_isFindInPageVisible) _buildFindInPageBar(activeTab),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                    color: const Color(0xFF13161C),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.circle,
-                          size: 8,
-                          color: activeTab.isPrivate ? Colors.purpleAccent : Colors.greenAccent,
-                        ),
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            activeTab.isPrivate
-                                ? 'Private Session • Engine: ${capabilities.underlyingEngineName}'
-                                : 'Engine: ${capabilities.underlyingEngineName}',
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 11, color: Colors.white70),
                           ),
                         ),
                         const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Colors.white10,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            'Platform: ${capabilities.platformName}',
-                            style: const TextStyle(fontSize: 10, color: Colors.white60),
-                          ),
-                        ),
-                        const Spacer(),
                         IconButton(
-                          icon: const Icon(Icons.remove, size: 14, color: Colors.white60),
-                          tooltip: 'Zoom Out (Cmd+-)',
-                          visualDensity: VisualDensity.compact,
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                          onPressed: () => activeTab.zoomOut(),
-                        ),
-                        InkWell(
-                          onTap: () => activeTab.resetZoom(),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 4),
-                            child: Text(
-                              '${(activeTab.zoomLevel * 100).round()}%',
-                              style: const TextStyle(fontSize: 11, color: Colors.white70),
-                            ),
+                          icon: Icon(
+                            _isFindInPageVisible ? Icons.find_in_page : Icons.find_in_page_outlined,
+                            size: 19,
+                            color: _isFindInPageVisible ? GlassTheme.accentTea : null,
                           ),
+                          tooltip: 'Find in Page (Cmd+F)',
+                          onPressed: _toggleFindInPage,
                         ),
                         IconButton(
-                          icon: const Icon(Icons.add, size: 14, color: Colors.white60),
-                          tooltip: 'Zoom In (Cmd+=)',
-                          visualDensity: VisualDensity.compact,
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                          onPressed: () => activeTab.zoomIn(),
+                          icon: const Icon(Icons.note_add_outlined, size: 19),
+                          tooltip: 'Clip to Notes',
+                          onPressed: _clipActivePageToNotes,
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.security, color: Colors.greenAccent, size: 19),
+                          tooltip: 'Privacy Audit',
+                          onPressed: _showPrivacyDisclosureDialog,
+                        ),
+                        IconButton(
+                          icon: Icon(
+                            _isRightPaneVisible && _activeRightTab == 'settings'
+                                ? Icons.settings
+                                : Icons.settings_outlined,
+                            size: 19,
+                            color: _isRightPaneVisible && _activeRightTab == 'settings'
+                                ? GlassTheme.accentTea
+                                : null,
+                          ),
+                          tooltip: 'Settings',
+                          onPressed: () {
+                            setState(() {
+                              if (_isRightPaneVisible && _activeRightTab == 'settings') {
+                                _isRightPaneVisible = false;
+                              } else {
+                                _isRightPaneVisible = true;
+                                _activeRightTab = 'settings';
+                              }
+                            });
+                          },
+                        ),
+                        IconButton(
+                          icon: Icon(
+                            _isRightPaneVisible && _activeRightTab != 'settings'
+                                ? Icons.view_sidebar
+                                : Icons.view_sidebar_outlined,
+                            size: 19,
+                          ),
+                          tooltip: 'Toggle Research Workspace',
+                          onPressed: () {
+                            setState(() {
+                              _isRightPaneVisible = !_isRightPaneVisible;
+                            });
+                          },
                         ),
                       ],
                     ),
                   ),
-                  Expanded(
-                    child: _buildViewportContent(activeTab),
+                  // Lower horizontal tab strip
+                  Container(
+                    height: 38,
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: _tabs.length,
+                            separatorBuilder: (context, index) => const SizedBox(width: 6),
+                            itemBuilder: (context, index) {
+                              final tab = _tabs[index];
+                              final isActive = index == _activeTabIndex;
+                              final isPrivate = tab.isPrivate;
+                              final accentColor = isPrivate ? Colors.purpleAccent : GlassTheme.accentTea;
+
+                              return InkWell(
+                                onTap: () {
+                                  setState(() {
+                                    _activeTabIndex = index;
+                                    final cur = tab.currentUrl?.toString() ?? '';
+                                    _urlController.text = cur == 'about:blank' ? '' : cur;
+                                  });
+                                  _checkCurrentUrlBookmarked();
+                                },
+                                borderRadius: BorderRadius.circular(8),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                                  constraints: const BoxConstraints(maxWidth: 180),
+                                  decoration: BoxDecoration(
+                                    color: isActive ? GlassTheme.surfaceGlass : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: isActive ? accentColor.withAlpha(160) : Colors.transparent,
+                                      width: 1.0,
+                                    ),
+                                    boxShadow: isActive
+                                        ? [
+                                            BoxShadow(
+                                              color: accentColor.withAlpha(35),
+                                              blurRadius: 8,
+                                              offset: const Offset(0, 1),
+                                            ),
+                                          ]
+                                        : null,
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (isPrivate) ...[
+                                        const Icon(Icons.shield, size: 12, color: Colors.purpleAccent),
+                                        const SizedBox(width: 4),
+                                      ],
+                                      Flexible(
+                                        child: Text(
+                                          tab.currentTitle.isEmpty
+                                              ? (isPrivate ? 'Private Tab' : 'New Tab')
+                                              : tab.currentTitle,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                                            color: isActive ? Colors.white : Colors.white60,
+                                          ),
+                                        ),
+                                      ),
+                                      if (_tabs.length > 1) ...[
+                                        const SizedBox(width: 6),
+                                        InkWell(
+                                          onTap: () => _closeTab(index),
+                                          borderRadius: BorderRadius.circular(8),
+                                          child: const Icon(Icons.close, size: 13, color: Colors.white54),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.add, size: 16),
+                          tooltip: 'New Tab',
+                          visualDensity: VisualDensity.compact,
+                          onPressed: () => _createNewTab(),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.shield_outlined, size: 15, color: Colors.purpleAccent),
+                          tooltip: 'New Private Tab (Cmd+Shift+N)',
+                          visualDensity: VisualDensity.compact,
+                          onPressed: () => _createNewTab(null, true),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
             ),
           ),
-          if (_isRightPaneVisible) ...[
-            const VerticalDivider(width: 1, thickness: 1, color: Colors.white12),
+        ),
+      ),
+      body: AmbientCanvasBackground(
+        child: Column(
+          children: [
+            if (activeTab.isLoading)
+              LinearProgressIndicator(
+                value: activeTab.progress > 0 ? activeTab.progress : null,
+                minHeight: 2,
+                backgroundColor: Colors.transparent,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  activeTab.isPrivate ? Colors.purpleAccent : GlassTheme.accentTea,
+                ),
+              ),
             Expanded(
-              flex: 4,
-              child: Container(
-                color: const Color(0xFF14171E),
-                child: Column(
-                  children: [
-                    Container(
-                      color: const Color(0xFF1A1E26),
-                      child: Row(
-                        children: [
-                          _buildRightTabHeader('notes', Icons.note_alt_outlined, 'Notes'),
-                          _buildRightTabHeader('bookmarks', Icons.bookmarks_outlined, 'Bookmarks'),
-                          _buildRightTabHeader('history', Icons.history, 'History'),
-                          _buildRightTabHeader('downloads', Icons.download_outlined, 'Downloads'),
-                          _buildRightTabHeader('settings', Icons.settings_outlined, 'Settings'),
-                          _buildRightTabHeader('ai', Icons.auto_awesome_outlined, 'AI'),
-                        ],
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: _isRightPaneVisible ? 6 : 10,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0C0D11),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: GlassTheme.borderSubtle, width: 1.0),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withAlpha(80),
+                                blurRadius: 20,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            children: [
+                              if (_isFindInPageVisible) _buildFindInPageBar(activeTab),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                                decoration: const BoxDecoration(
+                                  color: GlassTheme.surfaceGlassDense,
+                                  border: Border(bottom: BorderSide(color: GlassTheme.borderSubtle)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.circle,
+                                      size: 7,
+                                      color: activeTab.isPrivate ? Colors.purpleAccent : Colors.greenAccent,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: Text(
+                                        activeTab.isPrivate
+                                            ? 'Private • ${capabilities.underlyingEngineName}'
+                                            : 'Engine: ${capabilities.underlyingEngineName} • ${capabilities.platformName}',
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(fontSize: 11, color: Colors.white70),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    IconButton(
+                                      icon: const Icon(Icons.remove, size: 14, color: Colors.white60),
+                                      tooltip: 'Zoom Out (Cmd+-)',
+                                      visualDensity: VisualDensity.compact,
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+                                      onPressed: () => activeTab.zoomOut(),
+                                    ),
+                                    InkWell(
+                                      onTap: () => activeTab.resetZoom(),
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                                        child: Text(
+                                          '${(activeTab.zoomLevel * 100).round()}%',
+                                          style: const TextStyle(fontSize: 11, color: Colors.white70),
+                                        ),
+                                      ),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.add, size: 14, color: Colors.white60),
+                                      tooltip: 'Zoom In (Cmd+=)',
+                                      visualDensity: VisualDensity.compact,
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+                                      onPressed: () => activeTab.zoomIn(),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Expanded(
+                                child: _buildViewportContent(activeTab),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
+                  ),
+                  if (_isRightPaneVisible)
                     Expanded(
-                      child: _buildRightTabContent(),
+                      flex: 4,
+                      child: Container(
+                        margin: const EdgeInsets.only(top: 8, bottom: 10, right: 10),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: GlassSurface(
+                            blur: GlassTheme.blurStandard,
+                            color: GlassTheme.surfaceGlassDense,
+                            borderRadius: BorderRadius.circular(12),
+                            borderColor: GlassTheme.borderSubtle,
+                            child: Column(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                                  decoration: const BoxDecoration(
+                                    border: Border(bottom: BorderSide(color: GlassTheme.borderSubtle)),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      _buildRightTabHeader('notes', Icons.note_alt_outlined, 'Notes'),
+                                      _buildRightTabHeader('bookmarks', Icons.bookmarks_outlined, 'Bookmarks'),
+                                      _buildRightTabHeader('history', Icons.history, 'History'),
+                                      _buildRightTabHeader('downloads', Icons.download_outlined, 'Downloads'),
+                                      _buildRightTabHeader('settings', Icons.settings_outlined, 'Settings'),
+                                      _buildRightTabHeader('ai', Icons.auto_awesome_outlined, 'AI'),
+                                    ],
+                                  ),
+                                ),
+                                Expanded(
+                                  child: _buildRightTabContent(),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
-                  ],
-                ),
+                ],
               ),
             ),
           ],
-        ],
+        ),
       ),
     );
   }
@@ -2580,14 +2760,23 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Container(
-                width: 64,
-                height: 64,
+                width: 68,
+                height: 68,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFD48B47).withAlpha(35),
+                  color: GlassTheme.accentTea.withAlpha(25),
                   shape: BoxShape.circle,
-                  border: Border.all(color: const Color(0xFFD48B47).withAlpha(120), width: 2),
+                  border: Border.all(color: GlassTheme.accentTea.withAlpha(120), width: 1.5),
+                  boxShadow: [
+                    BoxShadow(
+                      color: GlassTheme.accentTea.withAlpha(45),
+                      blurRadius: 20,
+                      spreadRadius: 2,
+                    ),
+                  ],
                 ),
-                child: const Icon(Icons.coffee, size: 32, color: Color(0xFFD48B47)),
+                child: const Center(
+                  child: HotTeaLogo(size: 34),
+                ),
               ),
               const SizedBox(height: 16),
               const Text(
@@ -2603,11 +2792,11 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
               Container(
                 height: 48,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF16181D),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFD48B47).withAlpha(80)),
+                  color: GlassTheme.surfaceGlassDark,
+                  borderRadius: BorderRadius.circular(GlassTheme.radiusMd),
+                  border: Border.all(color: GlassTheme.accentTea.withAlpha(90)),
                   boxShadow: const [
-                    BoxShadow(color: Colors.black38, blurRadius: 12, offset: Offset(0, 4)),
+                    BoxShadow(color: Colors.black45, blurRadius: 16, offset: Offset(0, 4)),
                   ],
                 ),
                 child: TextField(
@@ -2619,14 +2808,14 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.search, size: 20, color: Color(0xFFD48B47)),
+                          const Icon(Icons.search, size: 20, color: GlassTheme.accentTea),
                           const SizedBox(width: 8),
                           Text(
                             _selectedSearchEngine.name,
                             style: const TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFFD48B47),
+                              color: GlassTheme.accentTea,
                             ),
                           ),
                         ],
@@ -2635,7 +2824,7 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
                     hintText: 'Search the web or type a URL...',
                     hintStyle: const TextStyle(color: Colors.white30, fontSize: 14),
                     suffixIcon: IconButton(
-                      icon: const Icon(Icons.arrow_forward, color: Color(0xFFD48B47)),
+                      icon: const Icon(Icons.arrow_forward, color: GlassTheme.accentTea),
                       onPressed: () => _onNavigate(),
                     ),
                     contentPadding: const EdgeInsets.symmetric(vertical: 12),
@@ -2679,10 +2868,10 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
                   runSpacing: 8,
                   children: _bookmarks.take(6).map((b) {
                     return ActionChip(
-                      avatar: const Icon(Icons.bookmark, size: 14, color: Color(0xFFD48B47)),
+                      avatar: const Icon(Icons.bookmark, size: 14, color: GlassTheme.accentTea),
                       label: Text(b.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-                      backgroundColor: const Color(0xFF16181D),
-                      side: const BorderSide(color: Colors.white12),
+                      backgroundColor: GlassTheme.surfaceGlassDark,
+                      side: const BorderSide(color: GlassTheme.borderSubtle),
                       onPressed: () => _activeTab.loadUrl(b.url),
                     );
                   }).toList(),
@@ -2698,14 +2887,14 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
   Widget _buildQuickAccessCard(String title, String subtitle, IconData icon, String targetUrl) {
     return InkWell(
       onTap: () => _activeTab.loadUrl(Uri.parse(targetUrl)),
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(GlassTheme.radiusMd),
       child: Container(
         width: 150,
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: const Color(0xFF16181D),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white12),
+          color: GlassTheme.surfaceGlass,
+          borderRadius: BorderRadius.circular(GlassTheme.radiusMd),
+          border: Border.all(color: GlassTheme.borderSubtle),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2713,10 +2902,11 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: const Color(0xFFD48B47).withAlpha(25),
-                borderRadius: BorderRadius.circular(6),
+                color: GlassTheme.accentTea.withAlpha(25),
+                borderRadius: BorderRadius.circular(GlassTheme.radiusSm),
+                border: Border.all(color: GlassTheme.accentTea.withAlpha(50)),
               ),
-              child: Icon(icon, size: 20, color: const Color(0xFFD48B47)),
+              child: Icon(icon, size: 20, color: GlassTheme.accentTea),
             ),
             const SizedBox(height: 10),
             Text(
@@ -2746,9 +2936,10 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
+            color: isActive ? GlassTheme.surfaceGlass : Colors.transparent,
             border: Border(
               bottom: BorderSide(
-                color: isActive ? const Color(0xFFD48B47) : Colors.transparent,
+                color: isActive ? GlassTheme.accentTea : Colors.transparent,
                 width: 2,
               ),
             ),
@@ -2760,7 +2951,7 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
               Icon(
                 icon,
                 size: 14,
-                color: isActive ? const Color(0xFFD48B47) : Colors.white54,
+                color: isActive ? GlassTheme.accentTea : Colors.white54,
               ),
               const SizedBox(width: 4),
               Flexible(

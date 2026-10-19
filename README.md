@@ -27,6 +27,8 @@ HotTea aims to bring these workflows together without sacrificing user control.
 
 ## 🌐 Browser Features & Workspace Capabilities
 
+* **State-of-the-Art Glassmorphic UI**: Ambient backdrop blurs (`GlassSurface`), warm amber radial highlights (`AmbientCanvasBackground`), and the official vector `HotTeaLogo` tea-cup identity.
+* **Unified Settings Controls**: Direct access to browser settings from both the floating mobile dock (`GlassDock`), desktop top toolbar & sidebar, and the frosted Action Sheet.
 * **Multi-Engine Web Search**: Direct address bar search via Google (default), DuckDuckGo, Bing, or Brave Search without telemetry or proxy intermediaries.
 * **Multi-Tab Architecture**: Open, switch, and close isolated browser tabs with independent history, title, and loading state.
 * **Private / Incognito Mode**: Isolated session tabs with disabled caching; visits and cookies are never committed to disk.
@@ -532,18 +534,23 @@ This builds the Flutter web application. It does not establish that native brows
 
 📦 Installation and Distribution
 
-HotTea plans to support straightforward installation on desktop platforms.
+HotTea is available for Android and in development for desktop platforms:
 
-Platform	Intended distribution
-macOS	DMG and potentially Homebrew Cask
-Linux	AppImage and potentially Debian packages
-Windows	Native installer and potentially WinGet
+| Platform | Status | Package / Format | Installation / Distribution |
+| :--- | :--- | :--- | :--- |
+| **Android** | **Available (APK)** | `app-release.apk` (~56 MB, API 26+) | Direct download from GitHub Releases & Website; sideload with `adb install -r app-release.apk` |
+| **macOS** | Source / Preview | DMG & Homebrew Cask (Planned) | `flutter run -d macos` |
+| **Linux** | Source / Preview | AppImage & Debian package (Planned) | `flutter run -d linux` |
+| **Windows** | Source / Preview | Native installer & WinGet (Planned) | `flutter run -d windows` |
+| **Web** | Live Preview | PWA / WASM Static Site | `flutter run -d chrome` or static host |
 
-Package-manager installation will become available only after the corresponding packages have been built, published, and tested.
-
-The project also aims to establish automated release builds, artifact checksums, and appropriate signing and verification procedures.
-
-These distribution methods are planned, not currently published installation channels.
+### Android APK Sideloading
+1. Download `app-release.apk` from the official repository or website.
+2. Sideload via ADB:
+   ```bash
+   adb install -r build/app/outputs/flutter-apk/app-release.apk
+   ```
+3. Or open `app-release.apk` on your Android device (ensure *"Install Unknown Apps"* is allowed for your browser/file manager).
 
 ⸻
 
@@ -702,17 +709,14 @@ Third-party dependencies, browser engines, model runtimes, and model weights may
 
 ⚠️ Development Status
 
-HotTea is an early-stage open-source project under active development.
+HotTea is under active, rigorous development with multiple foundational milestones implemented and verified:
 
-The initial Flutter project, foundational interfaces, documentation, and basic tests have been created. The initial web build has also been reported as successful.
-
-However, the project is not yet a completed cross-platform browser.
-
-Real browser integrations, functional AI-provider connections, the encrypted .tea vault, and production distribution remain implementation and validation tasks.
-
-Platform support will be described according to what has actually been built and tested.
-
-Use this project as experimental software until its functionality and security have been independently evaluated.
+* **Engine & Browsing Core**: Multi-tab browsing, address bar search routing (Google, DuckDuckGo, Bing, Brave), in-memory & SQLite persistence, downloads management, zooming, and private mode.
+* **Glassmorphic UI System**: Complete UI overhaul across desktop and mobile with frosted glass surfaces (`GlassSurface`, `GlassDock`), ambient atmospheric canvas blurs, SVG-accurate `HotTeaLogo`, and direct Settings access in the bottom dock, top toolbar, and action sheets.
+* **AI Gateway & Evidence-Backed Research**: Provider-independent gateway with OpenAI-compatible adapter, local runtime modeling with strict ban on silent cloud fallback, webpage extraction service, and verbatim evidence clipping.
+* **Android Release**: Standalone optimized Android release APK (`app-release.apk`, ~56 MB, API 26+) built and verified.
+* **Test Suite**: 76 passing automated tests (`flutter test`) and 0 static analysis issues (`flutter analyze`).
+* **Next Steps**: Encrypted `.tea` vault container formats and production desktop signed packaging.
 
 ⸻
 

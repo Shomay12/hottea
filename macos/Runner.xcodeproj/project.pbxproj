@@ -714,6 +714,8 @@
 				SDKROOT = macosx;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				ARCHS = arm64;
+				ONLY_ACTIVE_ARCH = YES;
 			};
 			name = Release;
 		};

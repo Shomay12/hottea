@@ -321,11 +321,11 @@
             </div>
             <div class="meta-chip">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-              <span>DMG SHA-256: <code class="checksum-snippet" title="9f9db6144584acf7f323ed555cc0f745867ec882ab06c3d70eac3f7c4fb1a68b">9f9db614...a68b</code></span>
+              <span>DMG SHA-256: <code class="checksum-snippet" title="a57670f44b6aee30c9998b9f2f66ae3460fc50877ed4a5d82cfbaa58e29f349d">a57670f4...349d</code></span>
             </div>
             <div class="meta-chip">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-              <span>APK SHA-256: <code class="checksum-snippet" title="e09b7f45b5118df459debc1cf47a60a6ce1189653a682b8430a201f82277ca12">e09b7f45...ca12</code></span>
+              <span>APK SHA-256: <code class="checksum-snippet" title="43cf772f8688017f1cbaf83a471cd386b25080f60b3cf0a3001908f52f1bd0fc">43cf772f...d0fc</code></span>
             </div>
           </div>
 
@@ -346,7 +346,7 @@
               </svg>
               Download Android APK (56 MB)
             </a>
-            <button class="btn btn-secondary btn-lg copy-btn" data-clipboard="9f9db6144584acf7f323ed555cc0f745867ec882ab06c3d70eac3f7c4fb1a68b">
+            <button class="btn btn-secondary btn-lg copy-btn" data-clipboard="a57670f44b6aee30c9998b9f2f66ae3460fc50877ed4a5d82cfbaa58e29f349d">
               Copy DMG SHA-256
             </button>
           </div>
@@ -374,23 +374,31 @@
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px; vertical-align:text-bottom;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
               Download macOS DMG (11 MB)
             </a>
-            <button class="btn btn-secondary btn-sm copy-btn" data-clipboard="9f9db6144584acf7f323ed555cc0f745867ec882ab06c3d70eac3f7c4fb1a68b" style="width:100%;">
+            <button class="btn btn-secondary btn-sm copy-btn" data-clipboard="a57670f44b6aee30c9998b9f2f66ae3460fc50877ed4a5d82cfbaa58e29f349d" style="width:100%;">
               Copy DMG SHA-256
             </button>
           </div>
         </div>
 
         <!-- iOS -->
-        <div class="dl-card" id="card-ios">
+        <div class="dl-card" id="card-ios" style="border-color: rgba(212, 139, 71, 0.4);">
           <div class="dl-card-header">
             <h3 class="dl-platform-title">iOS</h3>
-            <span class="status-badge status-implemented">Available</span>
+            <span class="status-badge status-implemented">Available (IPA &amp; App)</span>
           </div>
           <p class="dl-info">
-            iPhone and iPad layout featuring adaptive bottom navigation, tab card switcher, and edge-swipe gestures. Requires Xcode or Simulator.
+            iPhone and iPad layout featuring adaptive bottom navigation, tab card switcher, and edge-swipe gestures. Sideload via AltStore/TrollStore or build for Simulator.
           </p>
-          <div style="margin-top:auto;">
-            <a href="#build-from-source" class="btn btn-secondary btn-sm" style="width:100%;">Simulator Build Guide</a>
+          <div style="margin-bottom: 12px; font-size: 0.85rem; color: var(--text-muted);">
+            <div><strong>Package:</strong> <code>HotTea.ipa</code> (8.8 MB) / <code>Runner.app</code></div>
+            <div><strong>Target:</strong> iOS 13.0+ (ARM64)</div>
+          </div>
+          <div style="margin-top:auto; display:flex; flex-direction:column; gap:8px;">
+            <a href="downloads/HotTea.ipa" download="HotTea.ipa" class="btn btn-primary btn-sm" style="width:100%; text-align:center;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px; vertical-align:text-bottom;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+              Download iOS Package (IPA 8.8 MB)
+            </a>
+            <a href="#build-from-source" class="btn btn-secondary btn-sm" style="width:100%; text-align:center;">Simulator Build Guide</a>
           </div>
         </div>
 
@@ -408,10 +416,13 @@
             <div><strong>Min Version:</strong> Android 7.0+ (API 24+)</div>
           </div>
           <div style="margin-top:auto; display:flex; flex-direction:column; gap:8px;">
-            <a href="https://github.com/Shomay12/hottea/releases/latest/download/app-release.apk" class="btn btn-primary btn-sm" style="width:100%; text-align:center;">
+            <a href="downloads/app-release.apk" download="hottea-app-release.apk" class="btn btn-primary btn-sm" style="width:100%; text-align:center;">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px; vertical-align:text-bottom;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
               Download Release APK (56 MB)
             </a>
+            <button class="btn btn-secondary btn-sm copy-btn" data-clipboard="43cf772f8688017f1cbaf83a471cd386b25080f60b3cf0a3001908f52f1bd0fc" style="width:100%;">
+              Copy APK SHA-256
+            </button>
             <a href="#cli-panel-android" class="btn btn-secondary btn-sm" style="width:100%; text-align:center;">ADB &amp; Sideload Guide</a>
           </div>
         </div>

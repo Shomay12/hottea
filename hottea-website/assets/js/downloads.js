@@ -72,11 +72,11 @@ function renderFeaturedReleases(container) {
         </div>
         <div class="meta-chip">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-          <span>DMG SHA-256: <code class="checksum-snippet" title="9f9db6144584acf7f323ed555cc0f745867ec882ab06c3d70eac3f7c4fb1a68b">9f9db614...a68b</code></span>
+          <span>DMG SHA-256: <code class="checksum-snippet" title="a57670f44b6aee30c9998b9f2f66ae3460fc50877ed4a5d82cfbaa58e29f349d">a57670f4...349d</code></span>
         </div>
         <div class="meta-chip">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-          <span>APK SHA-256: <code class="checksum-snippet" title="e09b7f45b5118df459debc1cf47a60a6ce1189653a682b8430a201f82277ca12">e09b7f45...ca12</code></span>
+          <span>APK SHA-256: <code class="checksum-snippet" title="43cf772f8688017f1cbaf83a471cd386b25080f60b3cf0a3001908f52f1bd0fc">43cf772f...d0fc</code></span>
         </div>
       </div>
 
@@ -97,7 +97,7 @@ function renderFeaturedReleases(container) {
           </svg>
           Download Android APK (56 MB)
         </a>
-        <button class="btn btn-secondary btn-lg copy-btn" data-clipboard="9f9db6144584acf7f323ed555cc0f745867ec882ab06c3d70eac3f7c4fb1a68b">
+        <button class="btn btn-secondary btn-lg copy-btn" data-clipboard="a57670f44b6aee30c9998b9f2f66ae3460fc50877ed4a5d82cfbaa58e29f349d">
           Copy DMG SHA-256
         </button>
       </div>

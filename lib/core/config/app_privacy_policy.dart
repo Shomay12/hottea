@@ -15,5 +15,5 @@ class HotTeaPrivacyPolicy {
   /// Core Requirement 1: Provider-independent; no hardcoded reliance on a single vendor.
   static const String appName = 'HotTea';
   static const String appTagline = 'Local-first, privacy-focused AI browser & research workspace';
-  static const String projectVersion = '0.1.0-alpha';
+  static const String projectVersion = '1.1.0';
 }

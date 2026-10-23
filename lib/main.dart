@@ -4282,7 +4282,7 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
                         style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
                       ),
                       Text(
-                        'Version 1.0.0 (Stable Core)',
+                        'Version 1.1 (Stable Core)',
                         style: TextStyle(fontSize: 11, color: Color(0xFFD48B47)),
                       ),
                     ],

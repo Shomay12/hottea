@@ -47,10 +47,10 @@ function renderFeaturedReleases(container) {
               <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
               Official Releases Available
             </span>
-            <span class="badge-apk-ver">v0.1.0</span>
-            <span class="badge-apk-avail" style="background:rgba(212,139,71,0.15); color:var(--accent-primary); border-color:rgba(212,139,71,0.3);">macOS DMG &amp; Android APK</span>
+            <span class="badge-apk-ver">v1.1</span>
+            <span class="badge-apk-avail" style="background:rgba(212,139,71,0.15); color:var(--accent-primary); border-color:rgba(212,139,71,0.3);">macOS, Android &amp; iOS</span>
           </div>
-          <h2 class="featured-release-title">HotTea v0.1.0 — macOS DMG &amp; Android APK</h2>
+          <h2 class="featured-release-title">HotTea v1.1 — macOS, Android &amp; iOS</h2>
         </div>
         <a href="${HOTTEA_CONFIG.githubUrl}" class="btn btn-secondary btn-sm" target="_blank" rel="noopener">
           View on GitHub
@@ -72,11 +72,11 @@ function renderFeaturedReleases(container) {
         </div>
         <div class="meta-chip">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-          <span>DMG SHA-256: <code class="checksum-snippet" title="a57670f44b6aee30c9998b9f2f66ae3460fc50877ed4a5d82cfbaa58e29f349d">a57670f4...349d</code></span>
+          <span>DMG SHA-256: <code class="checksum-snippet" title="e52e43655ee80cccb30c7fd1487f6ab01d246c1e86d83a8034751af3d0c160ee">e52e4365...60ee</code></span>
         </div>
         <div class="meta-chip">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-          <span>APK SHA-256: <code class="checksum-snippet" title="43cf772f8688017f1cbaf83a471cd386b25080f60b3cf0a3001908f52f1bd0fc">43cf772f...d0fc</code></span>
+          <span>APK SHA-256: <code class="checksum-snippet" title="2fe0a4fc9f5f60cd16fd361596dd9bb67a23d1b5699cc265ce0e5264f867fce3">2fe0a4fc...fce3</code></span>
         </div>
       </div>
 
@@ -97,7 +97,7 @@ function renderFeaturedReleases(container) {
           </svg>
           Download Android APK (56 MB)
         </a>
-        <button class="btn btn-secondary btn-lg copy-btn" data-clipboard="a57670f44b6aee30c9998b9f2f66ae3460fc50877ed4a5d82cfbaa58e29f349d">
+        <button class="btn btn-secondary btn-lg copy-btn" data-clipboard="e52e43655ee80cccb30c7fd1487f6ab01d246c1e86d83a8034751af3d0c160ee">
           Copy DMG SHA-256
         </button>
       </div>

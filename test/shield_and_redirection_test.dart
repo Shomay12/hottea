@@ -104,6 +104,8 @@ void main() {
       expect(script.source, contains('sendBeacon'));
       expect(script.source, contains('cdn-cgi/challenge-platform'));
       expect(script.source, contains('XMLHttpRequest'));
+      expect(script.source, contains('HTMLAnchorElement'));
+      expect(script.source, contains('set href'));
     });
 
     test('Anti-bot challenge verification URLs and domains are never blocked as ads', () {

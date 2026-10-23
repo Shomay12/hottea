@@ -361,7 +361,9 @@ class HotTeaShieldRules {
   // --- Same-Tab Redirection & Popup Neutralizer ---
   // - Neutralizes ad/tracker popups while returning an active mockWindow to satisfy the caller.
   // - Allows legitimate destination navigations to proceed seamlessly in the active tab.
+  // - Supports async popup location assignment (e.g. popup.location.href = streamUrl).
   window.open = function(url, target, features) {
+    let _locHref = url || '';
     const mockWindow = {
       closed: false,
       focus: function(){},
@@ -371,7 +373,23 @@ class HotTeaShieldRules {
       addEventListener: function(){},
       removeEventListener: function(){},
       document: { readyState: 'complete', write: function(){}, close: function(){} },
-      location: { href: url || '' }
+      location: {
+        get href() { return _locHref; },
+        set href(val) {
+          _locHref = val;
+          try {
+            const p = new URL(val, window.location.href);
+            const h = p.hostname.toLowerCase();
+            const isAd = /(doubleclick|adsterra|popads|propellerads|exoclick|trafficjunky|adnxs|taboola|outbrain|googleads|syndication|ad-maven|bet365|1xbet|hilltopads|clickadu|popcash|monetag|bidswitch|moatads)/i.test(h);
+            if (!isAd) {
+              window.location.href = p.href;
+            }
+          } catch(e) {}
+        },
+        assign: function(val) { this.href = val; },
+        replace: function(val) { this.href = val; },
+        toString: function() { return _locHref; }
+      }
     };
     if (!url || url === '' || url === 'about:blank') {
       return mockWindow;
@@ -391,6 +409,28 @@ class HotTeaShieldRules {
       return mockWindow;
     }
   };
+
+  // Prevent programmatic hidden anchor clicks intended to open ad popunders
+  try {
+    if (window.HTMLAnchorElement && window.HTMLAnchorElement.prototype) {
+      const _origAnchorClick = window.HTMLAnchorElement.prototype.click;
+      window.HTMLAnchorElement.prototype.click = function() {
+        try {
+          const href = this.href;
+          if (href) {
+            const parsed = new URL(href, window.location.href);
+            const host = parsed.hostname.toLowerCase();
+            const isAd = /(doubleclick|adsterra|popads|propellerads|exoclick|trafficjunky|adnxs|taboola|outbrain|googleads|syndication|ad-maven|bet365|1xbet|hilltopads|clickadu|popcash|monetag|bidswitch|moatads)/i.test(host);
+            if (isAd) {
+              console.log('[HotTea Shield] Prevented simulated ad anchor click to:', host);
+              return;
+            }
+          }
+        } catch(e) {}
+        return _origAnchorClick.apply(this, arguments);
+      };
+    }
+  } catch(e) {}
 
   // Prevent annoying onbeforeunload dialog traps
   try {

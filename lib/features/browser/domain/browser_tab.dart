@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'browser_engine.dart';
+import 'hottea_shield_rules.dart';
 
 /// Represents a single browser tab within the HotTea research workspace.
 ///
@@ -48,6 +49,9 @@ class BrowserTab {
   BrowserNavigationError? get error => engine.currentError;
   bool get isPrivate => engine.isPrivate;
   double get zoomLevel => engine.zoomLevel;
+  HotTeaShieldConfig get shieldConfig => engine.shieldConfig;
+
+  void updateShieldConfig(HotTeaShieldConfig config) => engine.updateShieldConfig(config);
 
   Future<void> loadUrl(Uri url) => engine.loadUrl(url);
   Future<void> goBack() => engine.goBack();

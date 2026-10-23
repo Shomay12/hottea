@@ -27,6 +27,7 @@ HotTea aims to bring these workflows together without sacrificing user control.
 
 ## 🌐 Browser Features & Workspace Capabilities
 
+* **HotTea Shield & Smart Redirection**: Locks redirects and popups inside your active tab so you never get lost. Blocks intrusive ad networks and 3rd-party tracking cookies while strictly preserving 1st-party session logins. Defuses anti-adblock detection and fakes telemetry acknowledgment so you reach the intended outcome without friction or delays.
 * **State-of-the-Art Glassmorphic UI**: Ambient backdrop blurs (`GlassSurface`), warm amber radial highlights (`AmbientCanvasBackground`), and the official vector `HotTeaLogo` tea-cup identity.
 * **Unified Settings Controls**: Direct access to browser settings from both the floating mobile dock (`GlassDock`), desktop top toolbar & sidebar, and the frosted Action Sheet.
 * **Multi-Engine Web Search**: Direct address bar search via Google (default), DuckDuckGo, Bing, or Brave Search without telemetry or proxy intermediaries.

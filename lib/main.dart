@@ -14,6 +14,7 @@ import 'features/browser/domain/browser_engine.dart';
 import 'features/browser/domain/browser_tab.dart';
 import 'features/browser/domain/download_item.dart';
 import 'features/browser/domain/search_engine.dart';
+import 'features/browser/domain/hottea_shield_rules.dart';
 import 'features/research/data/webpage_extraction_service.dart';
 import 'core/utils/external_launcher.dart';
 import 'core/theme/glass_theme.dart';
@@ -25,42 +26,69 @@ void main() {
   runApp(const HotTeaApp());
 }
 
+final ValueNotifier<ThemeMode> themeModeNotifier = ValueNotifier<ThemeMode>(ThemeMode.dark);
+
 class HotTeaApp extends StatelessWidget {
   final LocalPersistenceRepository? persistenceRepository;
   final bool forceMockBrowser;
   final AiGateway? aiGateway;
+  final ThemeMode? initialThemeMode;
 
   const HotTeaApp({
     super.key,
     this.persistenceRepository,
     this.forceMockBrowser = false,
     this.aiGateway,
+    this.initialThemeMode,
   });
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: HotTeaPrivacyPolicy.appName,
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        brightness: Brightness.dark,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: GlassTheme.accentTea, // Warm amber tea tone (#D48B47)
-          brightness: Brightness.dark,
-          surface: GlassTheme.charcoal,
-        ),
-        scaffoldBackgroundColor: GlassTheme.backgroundDeep,
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-        ),
-      ),
-      home: HotTeaWorkspaceScreen(
-        persistenceRepository: persistenceRepository,
-        forceMockBrowser: forceMockBrowser,
-        aiGateway: aiGateway,
-      ),
+    if (initialThemeMode != null) {
+      themeModeNotifier.value = initialThemeMode!;
+    }
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: themeModeNotifier,
+      builder: (context, currentThemeMode, _) {
+        return MaterialApp(
+          title: HotTeaPrivacyPolicy.appName,
+          debugShowCheckedModeBanner: false,
+          themeMode: currentThemeMode,
+          theme: ThemeData(
+            useMaterial3: true,
+            brightness: Brightness.light,
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: GlassTheme.accentTea,
+              brightness: Brightness.light,
+              surface: Colors.white,
+            ),
+            scaffoldBackgroundColor: const Color(0xFFF4F6F9),
+            appBarTheme: const AppBarTheme(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+            ),
+          ),
+          darkTheme: ThemeData(
+            useMaterial3: true,
+            brightness: Brightness.dark,
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: GlassTheme.accentTea, // Warm amber tea tone (#D48B47)
+              brightness: Brightness.dark,
+              surface: GlassTheme.charcoal,
+            ),
+            scaffoldBackgroundColor: GlassTheme.backgroundDeep,
+            appBarTheme: const AppBarTheme(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+            ),
+          ),
+          home: HotTeaWorkspaceScreen(
+            persistenceRepository: persistenceRepository,
+            forceMockBrowser: forceMockBrowser,
+            aiGateway: aiGateway,
+          ),
+        );
+      },
     );
   }
 }
@@ -138,6 +166,14 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
   // Session Restoration State
   bool _restoreSessionEnabled = false;
 
+  // User Preferences (Phase 4 & 6)
+  String _homepageUrl = 'https://docs.flutter.dev';
+  final TextEditingController _homepageController = TextEditingController(text: 'https://docs.flutter.dev');
+  ThemeMode _currentThemeMode = ThemeMode.dark;
+
+  // HotTea Shield & Redirection Protections State
+  HotTeaShieldConfig _shieldConfig = const HotTeaShieldConfig();
+
   // AI Gateway State
   late final AiGateway _aiGateway;
   final TextEditingController _aiPromptController = TextEditingController();
@@ -183,7 +219,10 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
       await _refreshSources();
       await _refreshEvidence();
       await _loadSearchEngineSetting();
+      await _loadHomepageSetting();
+      await _loadThemeSetting();
       await _loadSessionRestoreSetting();
+      await _loadShieldSettings();
       await _loadAiSettings();
     } catch (e) {
       if (mounted) {
@@ -192,6 +231,76 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
         );
       }
     }
+  }
+
+  Future<void> _loadHomepageSetting() async {
+    if (!_isRepoInitialized) return;
+    try {
+      final saved = await _persistenceRepo.getSetting('homepage_url');
+      if (saved != null && saved.trim().isNotEmpty) {
+        if (mounted) {
+          setState(() {
+            _homepageUrl = saved.trim();
+            _homepageController.text = _homepageUrl;
+          });
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _updateHomepage(String newUrl) async {
+    final trimmed = newUrl.trim();
+    if (trimmed.isEmpty) return;
+    setState(() {
+      _homepageUrl = trimmed;
+      _homepageController.text = trimmed;
+    });
+    await _persistenceRepo.setSetting('homepage_url', trimmed);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Homepage updated to: $trimmed'), duration: const Duration(seconds: 2)),
+      );
+    }
+  }
+
+  void _navigateToHome() {
+    _onNavigate(_homepageUrl);
+  }
+
+  Future<void> _loadThemeSetting() async {
+    if (!_isRepoInitialized) return;
+    try {
+      final saved = await _persistenceRepo.getSetting('theme_mode');
+      if (saved != null) {
+        ThemeMode mode;
+        switch (saved.toLowerCase()) {
+          case 'light':
+            mode = ThemeMode.light;
+            break;
+          case 'system':
+            mode = ThemeMode.system;
+            break;
+          case 'dark':
+          default:
+            mode = ThemeMode.dark;
+            break;
+        }
+        if (mounted) {
+          setState(() {
+            _currentThemeMode = mode;
+            themeModeNotifier.value = mode;
+          });
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _updateThemeMode(ThemeMode mode) async {
+    setState(() {
+      _currentThemeMode = mode;
+      themeModeNotifier.value = mode;
+    });
+    await _persistenceRepo.setSetting('theme_mode', mode.name);
   }
 
   Future<void> _loadAiSettings() async {
@@ -283,6 +392,51 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
         await _persistenceRepo.setSetting('saved_session_urls', '');
       }
     }
+  }
+
+  Future<void> _loadShieldSettings() async {
+    if (!_isRepoInitialized) return;
+    try {
+      final shieldEnabledStr = await _persistenceRepo.getSetting('shield_enabled');
+      final blockAdsStr = await _persistenceRepo.getSetting('block_ads_trackers');
+      final blockCookiesStr = await _persistenceRepo.getSetting('block_third_party_cookies');
+      final sameTabStr = await _persistenceRepo.getSetting('same_tab_redirection');
+      final defuseAntiAdblockStr = await _persistenceRepo.getSetting('defuse_anti_adblock');
+      final autoDismissWallsStr = await _persistenceRepo.getSetting('auto_dismiss_cookie_walls');
+
+      final loaded = HotTeaShieldConfig(
+        shieldEnabled: shieldEnabledStr != 'false',
+        blockAdsAndTrackers: blockAdsStr != 'false',
+        blockThirdPartyCookies: blockCookiesStr != 'false',
+        keepNavigationsInSameTab: sameTabStr != 'false',
+        defuseAntiAdblockAndGates: defuseAntiAdblockStr != 'false',
+        autoDismissCookieWalls: autoDismissWallsStr != 'false',
+      );
+
+      if (mounted) {
+        setState(() {
+          _shieldConfig = loaded;
+        });
+        for (final tab in _tabs) {
+          tab.updateShieldConfig(loaded);
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _updateShieldConfig(HotTeaShieldConfig newConfig) async {
+    setState(() {
+      _shieldConfig = newConfig;
+    });
+    for (final tab in _tabs) {
+      tab.updateShieldConfig(newConfig);
+    }
+    if (!_isRepoInitialized) return;
+    try {
+      for (final entry in newConfig.toPersistenceMap().entries) {
+        await _persistenceRepo.setSetting(entry.key, entry.value);
+      }
+    } catch (_) {}
   }
 
   Future<void> _refreshBookmarks() async {
@@ -399,11 +553,12 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
   }
 
   void _createNewTab([Uri? initialUrl, bool isPrivate = false]) {
-    final newUrl = initialUrl ?? Uri.parse('about:blank');
+    final newUrl = initialUrl ?? (isPrivate ? Uri.parse('about:blank') : Uri.parse(_homepageUrl));
     final engine = BrowserEngineFactory.createEngine(
       initialUrl: newUrl,
       forceMock: widget.forceMockBrowser,
       isPrivate: isPrivate,
+      shieldConfig: _shieldConfig,
     );
 
     final tab = BrowserTab(
@@ -455,16 +610,20 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
   }
 
   void _closeTab(int index) {
+    if (index < 0 || index >= _tabs.length) return;
+    final tabToClose = _tabs[index];
+
     if (_tabs.length <= 1) {
-      // Cleanly handle zero/one tab on mobile: reset to about:blank
-      _tabs[0].loadUrl(Uri.parse('about:blank'));
+      // Disposing the last tab and creating a fresh default tab at the homepage
       setState(() {
-        _urlController.text = '';
+        _tabs.clear();
       });
+      tabToClose.dispose();
+      _createNewTab(Uri.parse(_homepageUrl));
+      _saveSession();
       return;
     }
 
-    final tabToClose = _tabs[index];
     setState(() {
       _tabs.removeAt(index);
       if (_activeTabIndex >= _tabs.length) {
@@ -527,6 +686,7 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
     }
     _urlFocusNode.dispose();
     _urlController.dispose();
+    _homepageController.dispose();
     _findFocusNode.dispose();
     _findController.dispose();
     _bookmarksFilterController.dispose();
@@ -1328,6 +1488,15 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
                         },
                       ),
                       _buildActionChip(
+                        icon: _shieldConfig.shieldEnabled ? Icons.shield : Icons.shield_outlined,
+                        label: _shieldConfig.shieldEnabled ? 'Shield: Active' : 'Shield: Paused',
+                        color: _shieldConfig.shieldEnabled ? const Color(0xFFD48B47) : Colors.white70,
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          _showShieldStatusSheet(context, activeTab);
+                        },
+                      ),
+                      _buildActionChip(
                         icon: Icons.copy_rounded,
                         label: 'Copy URL',
                         onTap: () {
@@ -1644,9 +1813,21 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
                             onSubmitted: (value) => _onNavigate(value),
                             style: const TextStyle(fontSize: 13, color: Colors.white),
                             decoration: InputDecoration(
-                              prefixIcon: activeTab.isPrivate
-                                  ? const Icon(Icons.shield, size: 14, color: Colors.purpleAccent)
-                                  : const Icon(Icons.lock_outline, size: 13, color: Colors.white38),
+                              prefixIconConstraints: const BoxConstraints(minWidth: 36, maxHeight: 36),
+                              prefixIcon: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (activeTab.isPrivate)
+                                    const Padding(
+                                      padding: EdgeInsets.only(left: 6, right: 2),
+                                      child: Icon(Icons.shield, size: 14, color: Colors.purpleAccent),
+                                    ),
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 6, right: 3),
+                                    child: _buildShieldBadgeButton(activeTab, compact: true),
+                                  ),
+                                ],
+                              ),
                               hintText: 'Search or enter URL',
                               hintStyle: const TextStyle(color: Colors.white30, fontSize: 13),
                               suffixIcon: Row(
@@ -2121,7 +2302,7 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(89),
+        preferredSize: const Size.fromHeight(88),
         child: ClipRect(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: GlassTheme.blurStandard, sigmaY: GlassTheme.blurStandard),
@@ -2132,14 +2313,120 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
               ),
               child: Column(
                 children: [
-                  // Upper navigation toolbar
+                  // Upper horizontal tab strip (Brave-like top tab bar)
                   Container(
-                    height: 50,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    height: 38,
+                    padding: const EdgeInsets.only(left: 8, right: 8, top: 2),
                     child: Row(
                       children: [
                         const HotTeaBrandBadge(showBadge: true),
                         const SizedBox(width: 8),
+                        Expanded(
+                          child: ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: _tabs.length,
+                            separatorBuilder: (context, index) => const SizedBox(width: 4),
+                            itemBuilder: (context, index) {
+                              final tab = _tabs[index];
+                              final isActive = index == _activeTabIndex;
+                              final isPrivate = tab.isPrivate;
+                              final accentColor = isPrivate ? Colors.purpleAccent : GlassTheme.accentTea;
+
+                              return InkWell(
+                                onTap: () {
+                                  setState(() {
+                                    _activeTabIndex = index;
+                                    final cur = tab.currentUrl?.toString() ?? '';
+                                    _urlController.text = cur == 'about:blank' ? '' : cur;
+                                  });
+                                  _checkCurrentUrlBookmarked();
+                                },
+                                borderRadius: BorderRadius.circular(8),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  constraints: const BoxConstraints(maxWidth: 190, minWidth: 90),
+                                  decoration: BoxDecoration(
+                                    color: isActive ? GlassTheme.surfaceGlassDark : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: isActive ? accentColor.withAlpha(180) : Colors.transparent,
+                                      width: 1.0,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (isPrivate) ...[
+                                        const Icon(Icons.shield, size: 12, color: Colors.purpleAccent),
+                                        const SizedBox(width: 4),
+                                      ] else ...[
+                                        Icon(
+                                          Icons.public,
+                                          size: 13,
+                                          color: isActive ? accentColor : Colors.white38,
+                                        ),
+                                        const SizedBox(width: 4),
+                                      ],
+                                      Flexible(
+                                        child: Text(
+                                          tab.currentTitle.isEmpty
+                                              ? (isPrivate ? 'Private Tab' : 'New Tab')
+                                              : tab.currentTitle,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                                            color: isActive ? Colors.white : Colors.white60,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      InkWell(
+                                        onTap: () => _closeTab(index),
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Tooltip(
+                                          message: 'Close Tab',
+                                          child: Icon(
+                                            Icons.close,
+                                            size: 13,
+                                            color: isActive ? Colors.white70 : Colors.white38,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.add, size: 16),
+                          tooltip: 'New Tab',
+                          visualDensity: VisualDensity.compact,
+                          onPressed: () => _createNewTab(),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.shield_outlined, size: 15, color: Colors.purpleAccent),
+                          tooltip: 'New Private Tab (Cmd+Shift+N)',
+                          visualDensity: VisualDensity.compact,
+                          onPressed: () => _createNewTab(null, true),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Lower navigation toolbar (Brave-like controls & Omnibox)
+                  Container(
+                    height: 48,
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    decoration: const BoxDecoration(
+                      color: GlassTheme.surfaceGlassDark,
+                      border: Border(
+                        top: BorderSide(color: GlassTheme.borderSubtle),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
                         IconButton(
                           icon: const Icon(Icons.arrow_back, size: 18),
                           tooltip: 'Back',
@@ -2167,22 +2454,18 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
                           },
                         ),
                         IconButton(
-                          icon: Icon(
-                            _isCurrentUrlBookmarked ? Icons.star : Icons.star_border,
-                            size: 18,
-                            color: _isCurrentUrlBookmarked ? Colors.amber : Colors.white54,
-                          ),
-                          tooltip: _isCurrentUrlBookmarked ? 'Remove Bookmark' : 'Bookmark Page',
+                          icon: const Icon(Icons.home_outlined, size: 19),
+                          tooltip: 'Home',
                           visualDensity: VisualDensity.compact,
-                          onPressed: _toggleBookmark,
+                          onPressed: _navigateToHome,
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 4),
                         Expanded(
                           child: Container(
-                            height: 38,
+                            height: 36,
                             decoration: BoxDecoration(
-                              color: GlassTheme.surfaceGlassDark,
-                              borderRadius: BorderRadius.circular(20),
+                              color: const Color(0xFF161922),
+                              borderRadius: BorderRadius.circular(18),
                               border: Border.all(
                                 color: activeTab.isPrivate
                                     ? Colors.purpleAccent.withAlpha(140)
@@ -2193,7 +2476,7 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
                                   ? const [
                                       BoxShadow(
                                         color: GlassTheme.accentIcyBlueGlow,
-                                        blurRadius: 10,
+                                        blurRadius: 8,
                                         spreadRadius: 1,
                                       ),
                                     ]
@@ -2218,7 +2501,11 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
                                         ),
                                       ),
                                     Padding(
-                                      padding: const EdgeInsets.only(left: 6, right: 4),
+                                      padding: const EdgeInsets.only(left: 6, right: 3),
+                                      child: _buildShieldBadgeButton(activeTab, compact: true),
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.only(left: 3, right: 4),
                                       child: _buildSearchEngineMenuButton(compact: true),
                                     ),
                                   ],
@@ -2230,6 +2517,18 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     IconButton(
+                                      icon: Icon(
+                                        _isCurrentUrlBookmarked ? Icons.star : Icons.star_border,
+                                        size: 16,
+                                        color: _isCurrentUrlBookmarked ? Colors.amber : Colors.white54,
+                                      ),
+                                      tooltip: _isCurrentUrlBookmarked ? 'Remove Bookmark' : 'Bookmark Page',
+                                      visualDensity: VisualDensity.compact,
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                                      onPressed: _toggleBookmark,
+                                    ),
+                                    IconButton(
                                       icon: const Icon(Icons.copy_rounded, size: 14, color: Colors.white54),
                                       tooltip: 'Copy URL',
                                       visualDensity: VisualDensity.compact,
@@ -2239,7 +2538,7 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
                                     ),
                                     IconButton(
                                       icon: const Icon(Icons.arrow_forward, size: 15, color: GlassTheme.accentTea),
-                                      onPressed: _onNavigate,
+                                      onPressed: () => _onNavigate(),
                                       tooltip: 'Navigate or Search',
                                       visualDensity: VisualDensity.compact,
                                       padding: EdgeInsets.zero,
@@ -2248,14 +2547,50 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
                                     const SizedBox(width: 6),
                                   ],
                                 ),
-                                contentPadding: const EdgeInsets.symmetric(vertical: 9),
+                                contentPadding: const EdgeInsets.symmetric(vertical: 8),
                                 border: InputBorder.none,
                                 isDense: true,
                               ),
                             ),
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 6),
+                        IconButton(
+                          icon: Icon(
+                            Icons.bookmarks_outlined,
+                            size: 19,
+                            color: _isRightPaneVisible && _activeRightTab == 'bookmarks' ? GlassTheme.accentTea : null,
+                          ),
+                          tooltip: 'Bookmarks',
+                          onPressed: () {
+                            setState(() {
+                              if (_isRightPaneVisible && _activeRightTab == 'bookmarks') {
+                                _isRightPaneVisible = false;
+                              } else {
+                                _isRightPaneVisible = true;
+                                _activeRightTab = 'bookmarks';
+                              }
+                            });
+                          },
+                        ),
+                        IconButton(
+                          icon: Icon(
+                            Icons.history,
+                            size: 19,
+                            color: _isRightPaneVisible && _activeRightTab == 'history' ? GlassTheme.accentTea : null,
+                          ),
+                          tooltip: 'History',
+                          onPressed: () {
+                            setState(() {
+                              if (_isRightPaneVisible && _activeRightTab == 'history') {
+                                _isRightPaneVisible = false;
+                              } else {
+                                _isRightPaneVisible = true;
+                                _activeRightTab = 'history';
+                              }
+                            });
+                          },
+                        ),
                         IconButton(
                           icon: Icon(
                             _isFindInPageVisible ? Icons.find_in_page : Icons.find_in_page_outlined,
@@ -2264,16 +2599,6 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
                           ),
                           tooltip: 'Find in Page (Cmd+F)',
                           onPressed: _toggleFindInPage,
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.note_add_outlined, size: 19),
-                          tooltip: 'Clip to Notes',
-                          onPressed: _clipActivePageToNotes,
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.security, color: Colors.greenAccent, size: 19),
-                          tooltip: 'Privacy Audit',
-                          onPressed: _showPrivacyDisclosureDialog,
                         ),
                         IconButton(
                           icon: Icon(
@@ -2299,7 +2624,7 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
                         ),
                         IconButton(
                           icon: Icon(
-                            _isRightPaneVisible && _activeRightTab != 'settings'
+                            _isRightPaneVisible && _activeRightTab != 'settings' && _activeRightTab != 'bookmarks' && _activeRightTab != 'history'
                                 ? Icons.view_sidebar
                                 : Icons.view_sidebar_outlined,
                             size: 19,
@@ -2310,103 +2635,6 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
                               _isRightPaneVisible = !_isRightPaneVisible;
                             });
                           },
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Lower horizontal tab strip
-                  Container(
-                    height: 38,
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: ListView.separated(
-                            scrollDirection: Axis.horizontal,
-                            itemCount: _tabs.length,
-                            separatorBuilder: (context, index) => const SizedBox(width: 6),
-                            itemBuilder: (context, index) {
-                              final tab = _tabs[index];
-                              final isActive = index == _activeTabIndex;
-                              final isPrivate = tab.isPrivate;
-                              final accentColor = isPrivate ? Colors.purpleAccent : GlassTheme.accentTea;
-
-                              return InkWell(
-                                onTap: () {
-                                  setState(() {
-                                    _activeTabIndex = index;
-                                    final cur = tab.currentUrl?.toString() ?? '';
-                                    _urlController.text = cur == 'about:blank' ? '' : cur;
-                                  });
-                                  _checkCurrentUrlBookmarked();
-                                },
-                                borderRadius: BorderRadius.circular(8),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                                  constraints: const BoxConstraints(maxWidth: 180),
-                                  decoration: BoxDecoration(
-                                    color: isActive ? GlassTheme.surfaceGlass : Colors.transparent,
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(
-                                      color: isActive ? accentColor.withAlpha(160) : Colors.transparent,
-                                      width: 1.0,
-                                    ),
-                                    boxShadow: isActive
-                                        ? [
-                                            BoxShadow(
-                                              color: accentColor.withAlpha(35),
-                                              blurRadius: 8,
-                                              offset: const Offset(0, 1),
-                                            ),
-                                          ]
-                                        : null,
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      if (isPrivate) ...[
-                                        const Icon(Icons.shield, size: 12, color: Colors.purpleAccent),
-                                        const SizedBox(width: 4),
-                                      ],
-                                      Flexible(
-                                        child: Text(
-                                          tab.currentTitle.isEmpty
-                                              ? (isPrivate ? 'Private Tab' : 'New Tab')
-                                              : tab.currentTitle,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-                                            color: isActive ? Colors.white : Colors.white60,
-                                          ),
-                                        ),
-                                      ),
-                                      if (_tabs.length > 1) ...[
-                                        const SizedBox(width: 6),
-                                        InkWell(
-                                          onTap: () => _closeTab(index),
-                                          borderRadius: BorderRadius.circular(8),
-                                          child: const Icon(Icons.close, size: 13, color: Colors.white54),
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.add, size: 16),
-                          tooltip: 'New Tab',
-                          visualDensity: VisualDensity.compact,
-                          onPressed: () => _createNewTab(),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.shield_outlined, size: 15, color: Colors.purpleAccent),
-                          tooltip: 'New Private Tab (Cmd+Shift+N)',
-                          visualDensity: VisualDensity.compact,
-                          onPressed: () => _createNewTab(null, true),
                         ),
                       ],
                     ),
@@ -3188,11 +3416,405 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
     );
   }
 
+  // --- HotTea Shield Badge & Status Widgets ---
+  Widget _buildShieldBadgeButton(BrowserTab activeTab, {bool compact = false}) {
+    final isProtected = _shieldConfig.shieldEnabled;
+    return Tooltip(
+      message: isProtected
+          ? 'HotTea Shield: Active & Protected (Same-tab redirects locked, anti-adblock defused, ads & 3rd-party cookies blocked)'
+          : 'HotTea Shield: Paused (Click to activate protections)',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(6),
+          onTap: () => _showShieldStatusSheet(context, activeTab),
+          child: Container(
+            padding: EdgeInsets.symmetric(horizontal: compact ? 5 : 7, vertical: 3),
+            decoration: BoxDecoration(
+              color: isProtected ? const Color(0xFFD48B47).withAlpha(35) : Colors.white10,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: isProtected ? const Color(0xFFD48B47).withAlpha(140) : Colors.white24,
+                width: 0.9,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  isProtected ? Icons.security : Icons.security_outlined,
+                  size: compact ? 13 : 15,
+                  color: isProtected ? const Color(0xFFD48B47) : Colors.white38,
+                ),
+                if (!compact) ...[
+                  const SizedBox(width: 4),
+                  Text(
+                    isProtected ? 'SHIELD' : 'PAUSED',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.6,
+                      color: isProtected ? const Color(0xFFD48B47) : Colors.white38,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showShieldStatusSheet(BuildContext context, BrowserTab activeTab) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final isProtected = _shieldConfig.shieldEnabled;
+            return Container(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+              decoration: const BoxDecoration(
+                color: Color(0xFF14171F),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                border: Border(top: BorderSide(color: Color(0xFFD48B47), width: 1.5)),
+              ),
+              child: SafeArea(
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          margin: const EdgeInsets.only(bottom: 16),
+                          decoration: BoxDecoration(
+                            color: Colors.white24,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFD48B47).withAlpha(40),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: const Color(0xFFD48B47).withAlpha(120)),
+                            ),
+                            child: const Icon(Icons.shield, color: Color(0xFFD48B47), size: 22),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'HotTea Shield',
+                                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.white),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  isProtected ? 'Active Protection • Frictionless Browsing' : 'Protection Paused for Session',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: isProtected ? const Color(0xFFD48B47) : Colors.white54,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Switch(
+                            activeThumbColor: const Color(0xFFD48B47),
+                            value: isProtected,
+                            onChanged: (val) {
+                              final updated = _shieldConfig.copyWith(shieldEnabled: val);
+                              _updateShieldConfig(updated);
+                              setSheetState(() {});
+                              setState(() {});
+                            },
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Redirects stay in your active tab. Intrusive ad popups, tracking cookies, and anti-adblock gates are defused openly so you reach the intended outcome without delays.',
+                        style: TextStyle(fontSize: 12, color: Colors.white70, height: 1.3),
+                      ),
+                      const SizedBox(height: 12),
+                      const Divider(color: Colors.white12, height: 1),
+                      const SizedBox(height: 10),
+                      _buildShieldStatusRow(
+                        icon: Icons.tab_unselected,
+                        title: 'Same-Tab Redirection Lock',
+                        subtitle: 'Redirects and links stay in this tab — never get lost or hijacked into stray tabs.',
+                        isActive: _shieldConfig.keepNavigationsInSameTab && isProtected,
+                        onToggle: (v) {
+                          final u = _shieldConfig.copyWith(keepNavigationsInSameTab: v);
+                          _updateShieldConfig(u);
+                          setSheetState(() {});
+                          setState(() {});
+                        },
+                      ),
+                      _buildShieldStatusRow(
+                        icon: Icons.flash_on,
+                        title: 'Anti-Adblock Defuser & Verification',
+                        subtitle: 'Spoofs ad and telemetry checks so servers load destination content directly.',
+                        isActive: _shieldConfig.defuseAntiAdblockAndGates && isProtected,
+                        onToggle: (v) {
+                          final u = _shieldConfig.copyWith(defuseAntiAdblockAndGates: v);
+                          _updateShieldConfig(u);
+                          setSheetState(() {});
+                          setState(() {});
+                        },
+                      ),
+                      _buildShieldStatusRow(
+                        icon: Icons.block,
+                        title: 'Ad & Tracker Network Blocker',
+                        subtitle: 'Filters DoubleClick, PopAds, Adsterra, telemetry beacons, and popup traps.',
+                        isActive: _shieldConfig.blockAdsAndTrackers && isProtected,
+                        onToggle: (v) {
+                          final u = _shieldConfig.copyWith(blockAdsAndTrackers: v);
+                          _updateShieldConfig(u);
+                          setSheetState(() {});
+                          setState(() {});
+                        },
+                      ),
+                      _buildShieldStatusRow(
+                        icon: Icons.cookie_outlined,
+                        title: 'Cookie Privacy (3rd-Party Blocked)',
+                        subtitle: 'Cross-site trackers blocked while 1st-party logins and state are preserved intact.',
+                        isActive: _shieldConfig.blockThirdPartyCookies && isProtected,
+                        onToggle: (v) {
+                          final u = _shieldConfig.copyWith(blockThirdPartyCookies: v);
+                          _updateShieldConfig(u);
+                          setSheetState(() {});
+                          setState(() {});
+                        },
+                      ),
+                      _buildShieldStatusRow(
+                        icon: Icons.cleaning_services,
+                        title: 'Intrusive Cookie Consent Cleaner',
+                        subtitle: 'Automatically dismisses annoying GDPR/Cookie banners and unfreezes page scrollbars.',
+                        isActive: _shieldConfig.autoDismissCookieWalls && isProtected,
+                        onToggle: (v) {
+                          final u = _shieldConfig.copyWith(autoDismissCookieWalls: v);
+                          _updateShieldConfig(u);
+                          setSheetState(() {});
+                          setState(() {});
+                        },
+                      ),
+                      const SizedBox(height: 14),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFD48B47),
+                            foregroundColor: Colors.black,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          onPressed: () => Navigator.pop(ctx),
+                          child: const Text('Done', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildShieldStatusRow({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required bool isActive,
+    required ValueChanged<bool> onToggle,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: isActive ? const Color(0xFFD48B47) : Colors.white30),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: isActive ? Colors.white : Colors.white38,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: const TextStyle(fontSize: 11, color: Colors.white54, height: 1.25),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            activeThumbColor: const Color(0xFFD48B47),
+            value: isActive,
+            onChanged: onToggle,
+          ),
+        ],
+      ),
+    );
+  }
+
   // --- Settings View ---
   Widget _buildSettingsView() {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        // Homepage Configuration
+        const Row(
+          children: [
+            Icon(Icons.home, size: 18, color: Color(0xFFD48B47)),
+            SizedBox(width: 8),
+            Text(
+              'Homepage Configuration',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Choose the web address that loads when opening new tabs or clicking the Home button.',
+          style: TextStyle(fontSize: 11, color: Colors.white60),
+        ),
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1B1E27),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.white10),
+          ),
+          child: Column(
+            children: [
+              TextField(
+                controller: _homepageController,
+                decoration: const InputDecoration(
+                  labelText: 'Homepage URL',
+                  hintText: 'https://docs.flutter.dev',
+                  prefixIcon: Icon(Icons.link, size: 18),
+                  isDense: true,
+                  border: OutlineInputBorder(),
+                ),
+                style: const TextStyle(fontSize: 13),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  OutlinedButton(
+                    onPressed: () {
+                      _homepageController.text = 'https://docs.flutter.dev';
+                      _updateHomepage('https://docs.flutter.dev');
+                    },
+                    child: const Text('Reset to Default', style: TextStyle(fontSize: 12)),
+                  ),
+                  const SizedBox(width: 8),
+                  if (_activeTab.currentUrl != null && _activeTab.currentUrl!.scheme != 'about')
+                    OutlinedButton(
+                      onPressed: () {
+                        final cur = _activeTab.currentUrl.toString();
+                        _homepageController.text = cur;
+                        _updateHomepage(cur);
+                      },
+                      child: const Text('Use Current Page', style: TextStyle(fontSize: 12)),
+                    ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFD48B47),
+                      foregroundColor: Colors.black,
+                    ),
+                    onPressed: () => _updateHomepage(_homepageController.text),
+                    child: const Text('Save Homepage', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        // Theme & Appearance
+        const Row(
+          children: [
+            Icon(Icons.palette_outlined, size: 18, color: Color(0xFFD48B47)),
+            SizedBox(width: 8),
+            Text(
+              'Appearance & Theme',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Select your preferred visual style. HotTea supports dark mode, light mode, and system preference.',
+          style: TextStyle(fontSize: 11, color: Colors.white60),
+        ),
+        const SizedBox(height: 10),
+        Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF1B1E27),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.white10),
+          ),
+          child: RadioGroup<ThemeMode>(
+            groupValue: _currentThemeMode,
+            onChanged: (val) {
+              if (val != null) _updateThemeMode(val);
+            },
+            child: const Column(
+              children: [
+                RadioListTile<ThemeMode>(
+                  value: ThemeMode.dark,
+                  activeColor: Color(0xFFD48B47),
+                  title: Text('Dark Theme', style: TextStyle(fontSize: 13)),
+                  subtitle: Text('High-contrast dark charcoal and amber theme designed for low eye strain.', style: TextStyle(fontSize: 11, color: Colors.white38)),
+                ),
+                Divider(height: 1, color: Colors.white10),
+                RadioListTile<ThemeMode>(
+                  value: ThemeMode.light,
+                  activeColor: Color(0xFFD48B47),
+                  title: Text('Light Theme', style: TextStyle(fontSize: 13)),
+                  subtitle: Text('Crisp, clean bright appearance with warm amber accents.', style: TextStyle(fontSize: 11, color: Colors.white38)),
+                ),
+                Divider(height: 1, color: Colors.white10),
+                RadioListTile<ThemeMode>(
+                  value: ThemeMode.system,
+                  activeColor: Color(0xFFD48B47),
+                  title: Text('Follow System Theme', style: TextStyle(fontSize: 13)),
+                  subtitle: Text('Automatically adapt to the operating system dark/light appearance setting.', style: TextStyle(fontSize: 11, color: Colors.white38)),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
+
         const Row(
           children: [
             Icon(Icons.travel_explore, size: 18, color: Color(0xFFD48B47)),
@@ -3270,6 +3892,93 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
               Text(
                 _selectedSearchEngine.privacyNotice,
                 style: const TextStyle(fontSize: 11, color: Colors.white70, height: 1.4),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        // HotTea Shield & Privacy Protections
+        const Row(
+          children: [
+            Icon(Icons.shield, size: 18, color: Color(0xFFD48B47)),
+            SizedBox(width: 8),
+            Text(
+              'HotTea Shield & Privacy Protections',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'HotTea Shield automatically prevents rogue ad popups, locks redirects inside your active tab so you never get lost, blocks 3rd-party tracking cookies while keeping logins intact, and defuses anti-adblock gates.',
+          style: TextStyle(fontSize: 11, color: Colors.white60, height: 1.3),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF1B1E27),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.white10),
+          ),
+          child: Column(
+            children: [
+              SwitchListTile(
+                activeThumbColor: const Color(0xFFD48B47),
+                value: _shieldConfig.shieldEnabled,
+                onChanged: (val) => _updateShieldConfig(_shieldConfig.copyWith(shieldEnabled: val)),
+                title: const Text('Enable HotTea Shield', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                subtitle: const Text('Master switch for all shield, redirection, and ad-blocking protections.', style: TextStyle(fontSize: 11, color: Colors.white54)),
+              ),
+              const Divider(height: 1, color: Colors.white10),
+              SwitchListTile(
+                activeThumbColor: const Color(0xFFD48B47),
+                value: _shieldConfig.keepNavigationsInSameTab,
+                onChanged: _shieldConfig.shieldEnabled
+                    ? (val) => _updateShieldConfig(_shieldConfig.copyWith(keepNavigationsInSameTab: val))
+                    : null,
+                title: const Text('Same-Tab Redirection Lock', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                subtitle: const Text('Keep links, redirects, and popups inside the active tab. Eliminates runaway tabs and lost sessions.', style: TextStyle(fontSize: 11, color: Colors.white54)),
+              ),
+              const Divider(height: 1, color: Colors.white10),
+              SwitchListTile(
+                activeThumbColor: const Color(0xFFD48B47),
+                value: _shieldConfig.defuseAntiAdblockAndGates,
+                onChanged: _shieldConfig.shieldEnabled
+                    ? (val) => _updateShieldConfig(_shieldConfig.copyWith(defuseAntiAdblockAndGates: val))
+                    : null,
+                title: const Text('Anti-Adblock Defuser & Verification', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                subtitle: const Text('Acknowledges fake telemetry and ad-verification so servers let you access destination content directly with zero obligations.', style: TextStyle(fontSize: 11, color: Colors.white54)),
+              ),
+              const Divider(height: 1, color: Colors.white10),
+              SwitchListTile(
+                activeThumbColor: const Color(0xFFD48B47),
+                value: _shieldConfig.blockAdsAndTrackers,
+                onChanged: _shieldConfig.shieldEnabled
+                    ? (val) => _updateShieldConfig(_shieldConfig.copyWith(blockAdsAndTrackers: val))
+                    : null,
+                title: const Text('Block Ads & Analytics Trackers', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                subtitle: const Text('Filters known ad networks, tracking pixels, popunders, and deceptive banners.', style: TextStyle(fontSize: 11, color: Colors.white54)),
+              ),
+              const Divider(height: 1, color: Colors.white10),
+              SwitchListTile(
+                activeThumbColor: const Color(0xFFD48B47),
+                value: _shieldConfig.blockThirdPartyCookies,
+                onChanged: _shieldConfig.shieldEnabled
+                    ? (val) => _updateShieldConfig(_shieldConfig.copyWith(blockThirdPartyCookies: val))
+                    : null,
+                title: const Text('Block 3rd-Party Tracking Cookies', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                subtitle: const Text('Isolates cross-site trackers while strictly preserving 1st-party session cookies so site logins and shopping carts never break.', style: TextStyle(fontSize: 11, color: Colors.white54)),
+              ),
+              const Divider(height: 1, color: Colors.white10),
+              SwitchListTile(
+                activeThumbColor: const Color(0xFFD48B47),
+                value: _shieldConfig.autoDismissCookieWalls,
+                onChanged: _shieldConfig.shieldEnabled
+                    ? (val) => _updateShieldConfig(_shieldConfig.copyWith(autoDismissCookieWalls: val))
+                    : null,
+                title: const Text('Auto-Dismiss Cookie Consent Walls', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                subtitle: const Text('Automatically cleans away intrusive GDPR/Cookie banners and unfreezes page scrollbars.', style: TextStyle(fontSize: 11, color: Colors.white54)),
               ),
             ],
           ),
@@ -3480,6 +4189,70 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
                     icon: const Icon(Icons.save, size: 16),
                     label: const Text('Save AI Configuration', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                     onPressed: _saveAiSettings,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        // About HotTea Section (Phase 6)
+        const Row(
+          children: [
+            HotTeaLogo(size: 18),
+            SizedBox(width: 8),
+            Text(
+              'About HotTea',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1B1E27),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.white10),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  HotTeaLogo(size: 28),
+                  SizedBox(width: 10),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'HotTea Browser',
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                      Text(
+                        'Version 1.0.0 (Stable Core)',
+                        style: TextStyle(fontSize: 11, color: Color(0xFFD48B47)),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'HotTea is a simple, stable, privacy-respecting cross-platform browser inspired by Brave. Built with Flutter, HotTea provides same-tab redirection locking, third-party tracker isolation, local SQLite persistence, tab management, and zero telemetry.',
+                style: TextStyle(fontSize: 12, color: Colors.white70, height: 1.4),
+              ),
+              const SizedBox(height: 12),
+              const Divider(height: 1, color: Colors.white10),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  const Icon(Icons.storage_outlined, size: 14, color: Colors.white54),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Storage: Local SQLite Database • Repository ${_isRepoInitialized ? "Connected" : "Initializing"}',
+                    style: const TextStyle(fontSize: 11, color: Colors.white54),
                   ),
                 ],
               ),

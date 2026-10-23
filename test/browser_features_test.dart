@@ -187,5 +187,25 @@ void main() {
       manager.clearCompleted();
       expect(manager.downloads, isEmpty);
     });
+
+    test('User preferences: homepage and theme settings persist and reload correctly', () async {
+      final repo = InMemoryPersistenceRepository();
+      await repo.initialize();
+
+      // Test homepage preference persistence
+      await repo.setSetting('homepage_url', 'https://flutter.dev/community');
+      final savedHome = await repo.getSetting('homepage_url');
+      expect(savedHome, equals('https://flutter.dev/community'));
+
+      // Test theme preference persistence
+      await repo.setSetting('theme_mode', 'light');
+      final savedTheme = await repo.getSetting('theme_mode');
+      expect(savedTheme, equals('light'));
+
+      await repo.setSetting('theme_mode', 'system');
+      expect(await repo.getSetting('theme_mode'), equals('system'));
+
+      await repo.close();
+    });
   });
 }

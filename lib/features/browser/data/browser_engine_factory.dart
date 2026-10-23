@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import '../domain/browser_engine.dart';
+import '../domain/hottea_shield_rules.dart';
 import 'inapp_browser_engine.dart';
 
 /// Factory for creating platform-appropriate [BrowserEngine] instances.
@@ -15,14 +16,15 @@ class BrowserEngineFactory {
     Uri? initialUrl,
     bool forceMock = false,
     bool isPrivate = false,
+    HotTeaShieldConfig? shieldConfig,
   }) {
     if (forceMock || _isTestEnvironment()) {
-      final engine = MockBrowserEngine(isPrivate: isPrivate);
+      final engine = MockBrowserEngine(isPrivate: isPrivate, shieldConfig: shieldConfig);
       engine.initialize(initialUrl: initialUrl);
       return engine;
     }
 
-    final engine = InAppBrowserEngine(initialUrl: initialUrl, isPrivate: isPrivate);
+    final engine = InAppBrowserEngine(initialUrl: initialUrl, isPrivate: isPrivate, shieldConfig: shieldConfig);
     engine.initialize(initialUrl: initialUrl);
     return engine;
   }

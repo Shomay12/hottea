@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/widgets.dart';
+import 'hottea_shield_rules.dart';
 
 /// Defines the operational rendering mode of the browser engine on a given platform.
 enum BrowserRenderMode {
@@ -142,6 +143,12 @@ abstract class BrowserEngine {
 
   /// Current zoom level (1.0 = 100%).
   double get zoomLevel;
+
+  /// Active HotTea Shield privacy and redirection configuration.
+  HotTeaShieldConfig get shieldConfig;
+
+  /// Updates HotTea Shield configuration rules.
+  void updateShieldConfig(HotTeaShieldConfig config);
 }
 
 /// A safe, self-contained reference/mock browser engine used for testing,
@@ -165,6 +172,7 @@ class MockBrowserEngine implements BrowserEngine {
   bool _canGoForward = false;
   BrowserNavigationError? _currentError;
   bool _disposed = false;
+  HotTeaShieldConfig _shieldConfig;
 
   @override
   final BrowserPlatformCapabilities capabilities;
@@ -182,7 +190,16 @@ class MockBrowserEngine implements BrowserEngine {
       notes: 'Safe local mock engine for testing and headless validation.',
     ),
     this.isPrivate = false,
-  });
+    HotTeaShieldConfig? shieldConfig,
+  }) : _shieldConfig = shieldConfig ?? const HotTeaShieldConfig();
+
+  @override
+  HotTeaShieldConfig get shieldConfig => _shieldConfig;
+
+  @override
+  void updateShieldConfig(HotTeaShieldConfig config) {
+    _shieldConfig = config;
+  }
 
   @override
   Future<void> initialize({Uri? initialUrl}) async {
@@ -205,6 +222,19 @@ class MockBrowserEngine implements BrowserEngine {
       _currentError = BrowserNavigationError(
         failedUrl: url,
         message: 'Unsupported scheme: ${url.scheme}. Only HTTP/HTTPS/about URLs are supported.',
+      );
+      _errorController.add(_currentError);
+      return;
+    }
+
+    // Shield check: Block ad/tracker domains
+    if (_shieldConfig.shieldEnabled && _shieldConfig.blockAdsAndTrackers && HotTeaShieldRules.isAdOrTracker(url)) {
+      _isLoading = false;
+      _loadingController.add(false);
+      _progressController.add(1.0);
+      _currentError = BrowserNavigationError(
+        failedUrl: url,
+        message: 'Blocked by HotTea Shield: Identified as advertising or tracker network.',
       );
       _errorController.add(_currentError);
       return;

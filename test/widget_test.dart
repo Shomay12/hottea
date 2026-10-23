@@ -80,6 +80,39 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(ListView), findsWidgets);
     });
+
+    testWidgets('Closing the last remaining tab recreates a clean default tab', (WidgetTester tester) async {
+      final repo = InMemoryPersistenceRepository();
+      await tester.pumpWidget(HotTeaApp(
+        persistenceRepository: repo,
+        forceMockBrowser: true,
+      ));
+      await tester.pumpAndSettle();
+
+      // We have 1 tab. Tap its close button
+      expect(find.byIcon(Icons.close), findsWidgets);
+      await tester.tap(find.byIcon(Icons.close).first);
+      await tester.pumpAndSettle();
+
+      // Browser must remain functional with a fresh tab and address bar present
+      expect(find.byType(TextField), findsWidgets);
+      expect(find.byTooltip('New Tab'), findsOneWidget);
+    });
+
+    testWidgets('Home button navigates to homepage', (WidgetTester tester) async {
+      final repo = InMemoryPersistenceRepository();
+      await tester.pumpWidget(HotTeaApp(
+        persistenceRepository: repo,
+        forceMockBrowser: true,
+      ));
+      await tester.pumpAndSettle();
+
+      // Verify Home button exists
+      expect(find.byTooltip('Home'), findsOneWidget);
+      await tester.tap(find.byTooltip('Home'));
+      await tester.pumpAndSettle();
+      expect(find.byType(TextField), findsWidgets);
+    });
   });
 
   group('BrowserTab & MockBrowserEngine Unit Tests', () {

@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:collection';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import '../domain/browser_engine.dart';
+import '../domain/hottea_shield_rules.dart';
 import 'download_manager.dart';
 
 /// Real browser engine integration backed by [InAppWebView].
@@ -33,6 +35,7 @@ class InAppBrowserEngine implements BrowserEngine {
   bool _canGoForward = false;
   BrowserNavigationError? _currentError;
   bool _disposed = false;
+  HotTeaShieldConfig _shieldConfig;
 
   final Uri _initialUrl;
 
@@ -42,12 +45,30 @@ class InAppBrowserEngine implements BrowserEngine {
   @override
   final BrowserPlatformCapabilities capabilities;
 
+  @override
+  HotTeaShieldConfig get shieldConfig => _shieldConfig;
+
+  @override
+  void updateShieldConfig(HotTeaShieldConfig config) {
+    _shieldConfig = config;
+    if (_webViewController != null) {
+      _webViewController?.setSettings(
+        settings: InAppWebViewSettings(
+          thirdPartyCookiesEnabled: !config.blockThirdPartyCookies,
+          contentBlockers: HotTeaShieldRules.getContentBlockers(config: config),
+        ),
+      );
+    }
+  }
+
   InAppBrowserEngine({
     Uri? initialUrl,
     BrowserPlatformCapabilities? customCapabilities,
     this.isPrivate = false,
+    HotTeaShieldConfig? shieldConfig,
   })  : _initialUrl = initialUrl ?? Uri.parse('https://docs.flutter.dev'),
-        capabilities = customCapabilities ?? _resolvePlatformCapabilities() {
+        capabilities = customCapabilities ?? _resolvePlatformCapabilities(),
+        _shieldConfig = shieldConfig ?? const HotTeaShieldConfig() {
     _currentUrl = _initialUrl;
   }
 
@@ -281,7 +302,56 @@ class InAppBrowserEngine implements BrowserEngine {
         allowsBackForwardNavigationGestures: true,
         allowsInlineMediaPlayback: true,
         isFraudulentWebsiteWarningEnabled: true,
+        domStorageEnabled: true,
+        databaseEnabled: true,
+        sharedCookiesEnabled: true,
+        // HotTea Shield & Redirection Protections
+        useShouldOverrideUrlLoading: true,
+        javaScriptCanOpenWindowsAutomatically: false,
+        supportMultipleWindows: true,
+        thirdPartyCookiesEnabled: !_shieldConfig.blockThirdPartyCookies,
+        contentBlockers: HotTeaShieldRules.getContentBlockers(config: _shieldConfig),
       ),
+      initialUserScripts: UnmodifiableListView<UserScript>([
+        HotTeaShieldRules.getShieldUserScript(config: _shieldConfig),
+      ]),
+      onCreateWindow: (controller, createWindowAction) async {
+        final request = createWindowAction.request;
+        final targetUrl = request.url?.uriValue;
+        if (targetUrl != null) {
+          // Block known malicious ad or tracking popups
+          if (_shieldConfig.shieldEnabled &&
+              _shieldConfig.blockAdsAndTrackers &&
+              HotTeaShieldRules.isAdOrTracker(targetUrl)) {
+            return true; // Filtered & suppressed
+          }
+          // Same-tab redirection: load destination in the active tab without spawning external windows or losing place
+          if (_shieldConfig.keepNavigationsInSameTab) {
+            await controller.loadUrl(urlRequest: request);
+            return true;
+          }
+        }
+        return true;
+      },
+      shouldOverrideUrlLoading: (controller, navigationAction) async {
+        final uri = navigationAction.request.url?.uriValue;
+        if (uri == null) return NavigationActionPolicy.ALLOW;
+
+        final scheme = uri.scheme.toLowerCase();
+        // Block external non-web protocol hijacks commonly triggered by ad networks
+        if (scheme != 'http' && scheme != 'https' && scheme != 'about' && scheme != 'data' && scheme != 'javascript') {
+          return NavigationActionPolicy.CANCEL;
+        }
+
+        // Block ad network redirects attempting to hijack the active tab
+        if (_shieldConfig.shieldEnabled &&
+            _shieldConfig.blockAdsAndTrackers &&
+            HotTeaShieldRules.isAdOrTracker(uri)) {
+          return NavigationActionPolicy.CANCEL;
+        }
+
+        return NavigationActionPolicy.ALLOW;
+      },
       onWebViewCreated: (controller) async {
         _webViewController = controller;
         if (_pendingUrl != null) {
@@ -346,6 +416,22 @@ class InAppBrowserEngine implements BrowserEngine {
         await _updateHistoryNavigationState();
       },
       onReceivedError: (controller, request, error) {
+        final isMainFrame = request.isForMainFrame == true;
+        if (!isMainFrame) {
+          // Subresource (tracker, ad, image, iframe, script) failure must NEVER break the page
+          return;
+        }
+
+        final desc = error.description.toLowerCase();
+        // Skip user or engine cancelled navigation errors (redirects, new URL entered, WebKit -999, policy 102)
+        if (error.type == WebResourceErrorType.CANCELLED ||
+            desc.contains('cancel') ||
+            desc.contains('-999') ||
+            desc.contains('102') ||
+            desc.contains('frameloadinterruptedbypolicychange')) {
+          return;
+        }
+
         _isLoading = false;
         _loadingController.add(false);
         _currentError = BrowserNavigationError(
@@ -356,15 +442,14 @@ class InAppBrowserEngine implements BrowserEngine {
         _errorController.add(_currentError);
       },
       onReceivedHttpError: (controller, request, response) {
-        final code = response.statusCode ?? 0;
-        if (code >= 400) {
-          _currentError = BrowserNavigationError(
-            failedUrl: request.url.uriValue,
-            message: 'HTTP Error $code: ${response.reasonPhrase ?? "Request failed"}',
-            statusCode: code,
-          );
-          _errorController.add(_currentError);
-        }
+        // Intentionally no-op:
+        // HTTP status codes (4xx and 5xx) return valid HTML bodies from web servers.
+        // For instance, Cloudflare Turnstile challenge pages return HTTP 403 Forbidden with
+        // an HTML payload containing the interactive verification widget. Similarly, custom
+        // 404 or 500 pages often provide navigation or login options.
+        // Real browsers render the response page directly. Replacing the entire WebView
+        // with an error screen on HTTP 4xx/5xx blocks challenge completion and prevents
+        // users from accessing sites.
       },
     );
   }

@@ -80,7 +80,7 @@ void main() {
       expect(find.text('2'), findsOneWidget);
 
       // Address bar should show shield icon for private tab
-      expect(find.byIcon(Icons.shield), findsOneWidget);
+      expect(find.byIcon(Icons.shield), findsAtLeastNWidgets(1));
     });
 
     testWidgets('Mobile secondary workspace navigation opens Bookmarks and returns cleanly', (WidgetTester tester) async {

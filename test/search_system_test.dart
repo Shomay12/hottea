@@ -7,6 +7,7 @@ import 'package:hottea/features/browser/domain/address_bar_parser.dart';
 import 'package:hottea/features/browser/domain/browser_engine.dart';
 import 'package:hottea/features/browser/domain/browser_tab.dart';
 import 'package:hottea/features/browser/domain/search_engine.dart';
+import 'package:hottea/features/browser/domain/hottea_shield_rules.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -344,6 +345,14 @@ class MockTestBrowserEngine implements BrowserEngine {
   Stream<bool> get canGoForwardStream => _canGoForwardController.stream;
   @override
   Stream<BrowserNavigationError?> get errorStream => _errorController.stream;
+  @override
+  Stream<int> get blockedCountStream => const Stream.empty();
+
+  @override
+  HotTeaShieldConfig get shieldConfig => const HotTeaShieldConfig();
+
+  @override
+  void updateShieldConfig(HotTeaShieldConfig config) {}
 
   void _notifyState() {
     _urlController.add(currentUrl);

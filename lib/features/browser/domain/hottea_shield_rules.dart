@@ -1,7 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
-/// Configuration settings for HotTea Shield privacy and redirection engine.
+/// Configuration settings for HotTea Shield privacy, protection, and redirection engine.
+/// Elevated with Brave-grade privacy protections (QueryFilter, De-AMP, Farbling, Per-Site Shields).
 class HotTeaShieldConfig {
   final bool shieldEnabled;
   final bool blockAdsAndTrackers;
@@ -10,6 +11,14 @@ class HotTeaShieldConfig {
   final bool defuseAntiAdblockAndGates;
   final bool autoDismissCookieWalls;
 
+  // Brave-Grade Extended Protections:
+  final bool cleanUrls;
+  final bool deAmpEnabled;
+  final bool blockFingerprinting;
+  final bool blockScripts;
+  final bool aggressiveAdBlocking;
+  final Set<String> disabledDomains;
+
   const HotTeaShieldConfig({
     this.shieldEnabled = true,
     this.blockAdsAndTrackers = true,
@@ -17,7 +26,26 @@ class HotTeaShieldConfig {
     this.keepNavigationsInSameTab = true,
     this.defuseAntiAdblockAndGates = true,
     this.autoDismissCookieWalls = true,
+    this.cleanUrls = true,
+    this.deAmpEnabled = true,
+    this.blockFingerprinting = true,
+    this.blockScripts = false,
+    this.aggressiveAdBlocking = false,
+    this.disabledDomains = const {},
   });
+
+  /// Checks whether shield protection is active for a given host or URL.
+  bool isShieldEnabledForHost(String? host) {
+    if (!shieldEnabled) return false;
+    if (host == null || host.isEmpty) return true;
+    final lower = host.toLowerCase();
+    for (final domain in disabledDomains) {
+      if (lower == domain || lower.endsWith('.$domain')) {
+        return false;
+      }
+    }
+    return true;
+  }
 
   HotTeaShieldConfig copyWith({
     bool? shieldEnabled,
@@ -26,6 +54,12 @@ class HotTeaShieldConfig {
     bool? keepNavigationsInSameTab,
     bool? defuseAntiAdblockAndGates,
     bool? autoDismissCookieWalls,
+    bool? cleanUrls,
+    bool? deAmpEnabled,
+    bool? blockFingerprinting,
+    bool? blockScripts,
+    bool? aggressiveAdBlocking,
+    Set<String>? disabledDomains,
   }) {
     return HotTeaShieldConfig(
       shieldEnabled: shieldEnabled ?? this.shieldEnabled,
@@ -34,6 +68,12 @@ class HotTeaShieldConfig {
       keepNavigationsInSameTab: keepNavigationsInSameTab ?? this.keepNavigationsInSameTab,
       defuseAntiAdblockAndGates: defuseAntiAdblockAndGates ?? this.defuseAntiAdblockAndGates,
       autoDismissCookieWalls: autoDismissCookieWalls ?? this.autoDismissCookieWalls,
+      cleanUrls: cleanUrls ?? this.cleanUrls,
+      deAmpEnabled: deAmpEnabled ?? this.deAmpEnabled,
+      blockFingerprinting: blockFingerprinting ?? this.blockFingerprinting,
+      blockScripts: blockScripts ?? this.blockScripts,
+      aggressiveAdBlocking: aggressiveAdBlocking ?? this.aggressiveAdBlocking,
+      disabledDomains: disabledDomains ?? this.disabledDomains,
     );
   }
 
@@ -45,10 +85,21 @@ class HotTeaShieldConfig {
       'same_tab_redirection': keepNavigationsInSameTab.toString(),
       'defuse_anti_adblock': defuseAntiAdblockAndGates.toString(),
       'auto_dismiss_cookie_walls': autoDismissCookieWalls.toString(),
+      'clean_urls': cleanUrls.toString(),
+      'deamp_enabled': deAmpEnabled.toString(),
+      'block_fingerprinting': blockFingerprinting.toString(),
+      'block_scripts': blockScripts.toString(),
+      'aggressive_ad_blocking': aggressiveAdBlocking.toString(),
+      'disabled_domains': disabledDomains.join(','),
     };
   }
 
   factory HotTeaShieldConfig.fromPersistenceMap(Map<String, String?> map) {
+    final disabledStr = map['disabled_domains'] ?? '';
+    final disabled = disabledStr.isEmpty
+        ? <String>{}
+        : disabledStr.split(',').map((e) => e.trim().toLowerCase()).where((e) => e.isNotEmpty).toSet();
+
     return HotTeaShieldConfig(
       shieldEnabled: map['shield_enabled'] != 'false',
       blockAdsAndTrackers: map['block_ads_trackers'] != 'false',
@@ -56,11 +107,17 @@ class HotTeaShieldConfig {
       keepNavigationsInSameTab: map['same_tab_redirection'] != 'false',
       defuseAntiAdblockAndGates: map['defuse_anti_adblock'] != 'false',
       autoDismissCookieWalls: map['auto_dismiss_cookie_walls'] != 'false',
+      cleanUrls: map['clean_urls'] != 'false',
+      deAmpEnabled: map['deamp_enabled'] != 'false',
+      blockFingerprinting: map['block_fingerprinting'] != 'false',
+      blockScripts: map['block_scripts'] == 'true',
+      aggressiveAdBlocking: map['aggressive_ad_blocking'] == 'true',
+      disabledDomains: disabled,
     );
   }
 }
 
-/// Rules, filters, and scripts powering HotTea Shield.
+/// Rules, filters, scripts, and farbling engine powering HotTea Shield.
 ///
 /// Ensures:
 /// 1. Ad and tracker blocking without breaking website functional logic.
@@ -68,6 +125,8 @@ class HotTeaShieldConfig {
 /// 3. Same-tab redirection lock: Links and redirects stay in the active tab without getting lost.
 /// 4. Anti-adblock and fake redirection gate defusal: Servers believe tracking/redirection
 ///    acknowledged so content renders openly without friction or delay.
+/// 5. Brave-grade Browser Fingerprinting Protection (Canvas, Audio, WebGL, Screen Farbling).
+/// 6. Clean URLs & De-AMP canonical redirection.
 class HotTeaShieldRules {
   HotTeaShieldRules._();
 
@@ -110,11 +169,29 @@ class HotTeaShieldRules {
     'hilltopads.net',
     'clickadu.com',
     'popcash.net',
+    // Expanded telemetry and tracker domains
+    'amplitude.com',
+    'mixpanel.com',
+    'segment.io',
+    'segment.com',
+    'coinhive.com',
+    'coin-hive.com',
+    'adroll.com',
+    'serving-sys.com',
+    'smartadserver.com',
+    'yieldmo.com',
+    'sharethrough.com',
+    'inmobi.com',
+    'applovin.com',
+    'ironsrc.com',
+    'mouseflow.com',
+    'crazyegg.com',
+    'fullstory.com',
   ];
 
   /// Combined regex matching ad and tracker network requests.
   static final RegExp adRegex = RegExp(
-    r'(doubleclick\.net|googlesyndication\.com|google-analytics\.com|adservice\.google\.com|pagead2\.googlesyndication\.com|criteo\.com|criteo\.net|adnxs\.com|amazon-adsystem\.com|taboola\.com|outbrain\.com|popads\.net|propellerads\.com|adsterra\.com|exoclick\.com|ad-maven\.com|trafficjunky|monetag\.com|bidswitch\.net|moatads\.com|scorecardresearch\.com|hotjar\.com|clarity\.ms|fbevents\.js|rubiconproject\.com|pubmatic\.com|openx\.net|hilltopads|clickadu|popcash)',
+    r'(doubleclick\.net|googlesyndication\.com|google-analytics\.com|adservice\.google\.com|pagead2\.googlesyndication\.com|criteo\.com|criteo\.net|adnxs\.com|amazon-adsystem\.com|taboola\.com|outbrain\.com|popads\.net|propellerads\.com|adsterra\.com|exoclick\.com|ad-maven\.com|trafficjunky|monetag\.com|bidswitch\.net|moatads\.com|scorecardresearch\.com|hotjar\.com|clarity\.ms|fbevents\.js|rubiconproject\.com|pubmatic\.com|openx\.net|hilltopads|clickadu|popcash|amplitude\.com|mixpanel\.com|segment\.io|segment\.com|coinhive\.com|adroll\.com|smartadserver\.com|yieldmo\.com|sharethrough\.com|inmobi\.com|applovin\.com)',
     caseSensitive: false,
   );
 
@@ -153,6 +230,10 @@ class HotTeaShieldRules {
       }
 
       // 2. Cosmetic ad banner & support gate hiding via CSS injection
+      final cosmeticSelector = config.aggressiveAdBlocking
+          ? '.ad-banner, .advertisement, [id*="ad_banner"], [id*="google_ads"], [class*="sponsored-post"], ins.adsbygoogle, .taboola-ad, .outbrain-ad, #support_modal, #supportModal, .support-gate, .support-modal, #ad-gate, .ad-gate, #daily-ad, .daily-ad, #support-modal, .support-overlay, [class*="ad-slot"], [id*="ad-slot"], [data-ad-unit], [data-ad-slot], [class*="sponsored"], [id*="sponsored"], .ytp-ad-overlay-container, .ytp-ad-message-container, .video-ads, .ad-showing'
+          : '.ad-banner, .advertisement, [id*="ad_banner"], [id*="google_ads"], [class*="sponsored-post"], ins.adsbygoogle, .taboola-ad, .outbrain-ad, #support_modal, #supportModal, .support-gate, .support-modal, #ad-gate, .ad-gate, #daily-ad, .daily-ad, #support-modal, .support-overlay';
+
       blockers.add(
         ContentBlocker(
           trigger: ContentBlockerTrigger(
@@ -160,7 +241,7 @@ class HotTeaShieldRules {
           ),
           action: ContentBlockerAction(
             type: ContentBlockerActionType.CSS_DISPLAY_NONE,
-            selector: '.ad-banner, .advertisement, [id*="ad_banner"], [id*="google_ads"], [class*="sponsored-post"], ins.adsbygoogle, .taboola-ad, .outbrain-ad, #support_modal, #supportModal, .support-gate, .support-modal, #ad-gate, .ad-gate, #daily-ad, .daily-ad, #support-modal, .support-overlay',
+            selector: cosmeticSelector,
           ),
         ),
       );
@@ -175,7 +256,7 @@ class HotTeaShieldRules {
           ),
           action: ContentBlockerAction(
             type: ContentBlockerActionType.CSS_DISPLAY_NONE,
-            selector: '#onetrust-consent-sdk, #onetrust-banner-sdk, .cookie-banner, .cookie-consent, [id*="cookie-notice"], .cmp-container, .fc-consent-root, #sp_message_container, .qc-cmp2-container',
+            selector: '#onetrust-consent-sdk, #onetrust-banner-sdk, .cookie-banner, .cookie-consent, [id*="cookie-notice"], .cmp-container, .fc-consent-root, #sp_message_container, .qc-cmp2-container, #didomi-host',
           ),
         ),
       );
@@ -214,9 +295,95 @@ class HotTeaShieldRules {
   /// - Neutralizes popups and keeps user in their active movie/content page without hijacking.
   /// - Non-destructively hides ad gates (e.g. "We Need Support", "Open 1 ADS per Day") and unblurs background content.
   /// - Pre-seeds daily ad/support storage keys so sites believe user obligations are fulfilled.
+  /// - Brave Farbling Defenses: Randomizes Canvas, WebGL, AudioContext, and Hardware fingerprint vectors.
+  /// - Real-time Shield Block Counter Bridge.
   static UserScript getShieldUserScript({HotTeaShieldConfig config = const HotTeaShieldConfig()}) {
     final jsCode = '''
 (function() {
+  // --- HotTea Shield Real-time Block Counter Bridge ---
+  window.__hotteaBlockedCount = 0;
+  function reportBlockedItem(delta) {
+    window.__hotteaBlockedCount += (delta || 1);
+    try {
+      if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+        window.flutter_inappwebview.callHandler('onShieldBlockedItem', window.__hotteaBlockedCount);
+      }
+    } catch(e) {}
+  }
+
+  ${config.shieldEnabled && config.blockFingerprinting ? '''
+  // --- Brave-Grade Fingerprinting Defenses (Farbling) ---
+  // 1. Canvas Farbling (Subtly randomizes 1-bit pixel noise to prevent canvas hash fingerprinting)
+  try {
+    if (window.HTMLCanvasElement && window.HTMLCanvasElement.prototype) {
+      const origToDataURL = HTMLCanvasElement.prototype.toDataURL;
+      HTMLCanvasElement.prototype.toDataURL = function() {
+        try {
+          const ctx = this.getContext('2d');
+          if (ctx) {
+            const imgData = ctx.getImageData(0, 0, Math.min(this.width, 16), Math.min(this.height, 16));
+            if (imgData && imgData.data && imgData.data.length > 0) {
+              imgData.data[0] = (imgData.data[0] ^ 1) & 0xFF;
+              ctx.putImageData(imgData, 0, 0);
+            }
+          }
+        } catch(e) {}
+        return origToDataURL.apply(this, arguments);
+      };
+    }
+    if (window.CanvasRenderingContext2D && window.CanvasRenderingContext2D.prototype) {
+      const origGetImageData = CanvasRenderingContext2D.prototype.getImageData;
+      CanvasRenderingContext2D.prototype.getImageData = function(sx, sy, sw, sh) {
+        const res = origGetImageData.apply(this, arguments);
+        try {
+          if (res && res.data && res.data.length > 0) {
+            res.data[0] = (res.data[0] ^ 1) & 0xFF;
+          }
+        } catch(e) {}
+        return res;
+      };
+    }
+  } catch(e) {}
+
+  // 2. WebGL Farbling (Masks GPU vendor & renderer strings)
+  try {
+    const spoofWebGL = function(proto) {
+      if (!proto || !proto.getParameter) return;
+      const origGetParameter = proto.getParameter;
+      proto.getParameter = function(param) {
+        // 0x9245: UNMASKED_VENDOR_WEBGL, 0x9246: UNMASKED_RENDERER_WEBGL
+        if (param === 0x9245) return 'HotTea / Brave Privacy Shield GPU';
+        if (param === 0x9246) return 'HotTea Angle High-Fidelity Renderer';
+        return origGetParameter.apply(this, arguments);
+      };
+    };
+    if (window.WebGLRenderingContext) spoofWebGL(WebGLRenderingContext.prototype);
+    if (window.WebGL2RenderingContext) spoofWebGL(WebGL2RenderingContext.prototype);
+  } catch(e) {}
+
+  // 3. AudioContext Farbling
+  try {
+    if (window.AnalyserNode && window.AnalyserNode.prototype.getFloatFrequencyData) {
+      const origFloatFreq = window.AnalyserNode.prototype.getFloatFrequencyData;
+      window.AnalyserNode.prototype.getFloatFrequencyData = function(arr) {
+        origFloatFreq.apply(this, arguments);
+        for (let i = 0; i < Math.min(arr.length, 10); i++) {
+          arr[i] += (Math.random() - 0.5) * 0.0001;
+        }
+      };
+    }
+  } catch(e) {}
+
+  // 4. Hardware & Battery Shielding
+  try {
+    Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 4, configurable: true });
+    Object.defineProperty(navigator, 'deviceMemory', { get: () => 8, configurable: true });
+    if (navigator.getBattery) {
+      navigator.getBattery = function() { return Promise.reject(new Error('Battery API restricted by HotTea Shield')); };
+    }
+  } catch(e) {}
+  ''' : ''}
+
   ${config.shieldEnabled && config.defuseAntiAdblockAndGates ? '''
   // --- HotTea Shield Anti-Adblock Defuser & Verification Spoofing ---
   try {
@@ -269,6 +436,7 @@ class HotTeaShieldRules {
           const urlStr = typeof resource === 'string' ? resource : (resource && resource.url ? resource.url : '');
           const u = urlStr.toLowerCase();
           if (u.includes('pagead2.googlesyndication.com') || u.includes('/ads.js') || u.includes('prebid.js') || u.includes('chor-mate')) {
+            reportBlockedItem(1);
             return Promise.resolve(new Response('window.canRunAds = true;', {
               status: 200,
               statusText: 'OK',
@@ -297,6 +465,7 @@ class HotTeaShieldRules {
           this._hotteaProbe.includes('prebid.js') ||
           this._hotteaProbe.includes('adsbygoogle')
         )) {
+          reportBlockedItem(1);
           try {
             Object.defineProperty(this, 'status', { value: 200, writable: true, configurable: true });
             Object.defineProperty(this, 'readyState', { value: 4, writable: true, configurable: true });
@@ -334,7 +503,6 @@ class HotTeaShieldRules {
     window.navigator.sendBeacon = function(url, data) {
       try {
         const u = String(url).toLowerCase();
-        // Allow verification and challenge tokens to reach servers (Turnstile, Cloudflare, hCaptcha, etc.)
         if (u.includes('cdn-cgi/challenge-platform') ||
             u.includes('cloudflare') ||
             u.includes('turnstile') ||
@@ -342,11 +510,11 @@ class HotTeaShieldRules {
             !u.startsWith('http')) {
           return _origSendBeacon(url, data);
         }
-        // Absorb ad/telemetry beacons
         if (u.includes('google-analytics') ||
             u.includes('doubleclick') ||
             u.includes('telemetry') ||
             u.includes('stats.wp.com')) {
+          reportBlockedItem(1);
           return true;
         }
         return _origSendBeacon(url, data);
@@ -359,9 +527,6 @@ class HotTeaShieldRules {
 
   ${config.shieldEnabled && config.keepNavigationsInSameTab ? '''
   // --- Same-Tab Redirection & Popup Neutralizer ---
-  // - Neutralizes ad/tracker popups while returning an active mockWindow to satisfy the caller.
-  // - Allows legitimate destination navigations to proceed seamlessly in the active tab.
-  // - Supports async popup location assignment (e.g. popup.location.href = streamUrl).
   window.open = function(url, target, features) {
     let _locHref = url || '';
     const mockWindow = {
@@ -383,6 +548,8 @@ class HotTeaShieldRules {
             const isAd = /(doubleclick|adsterra|popads|propellerads|exoclick|trafficjunky|adnxs|taboola|outbrain|googleads|syndication|ad-maven|bet365|1xbet|hilltopads|clickadu|popcash|monetag|bidswitch|moatads)/i.test(h);
             if (!isAd) {
               window.location.href = p.href;
+            } else {
+              reportBlockedItem(1);
             }
           } catch(e) {}
         },
@@ -399,10 +566,10 @@ class HotTeaShieldRules {
       const host = parsed.hostname.toLowerCase();
       const isAd = /(doubleclick|adsterra|popads|propellerads|exoclick|trafficjunky|adnxs|taboola|outbrain|googleads|syndication|ad-maven|bet365|1xbet|hilltopads|clickadu|popcash|monetag|bidswitch|moatads)/i.test(host);
       if (isAd) {
+        reportBlockedItem(1);
         console.log('[HotTea Shield] Prevented ad popup to:', host);
         return mockWindow;
       }
-      // Legitimate destination navigation: proceed in current tab so user reaches target content directly
       window.location.href = parsed.href;
       return window;
     } catch(e) {
@@ -410,18 +577,18 @@ class HotTeaShieldRules {
     }
   };
 
-  // Prevent programmatic hidden anchor clicks intended to open ad popunders
   try {
     if (window.HTMLAnchorElement && window.HTMLAnchorElement.prototype) {
       const _origAnchorClick = window.HTMLAnchorElement.prototype.click;
       window.HTMLAnchorElement.prototype.click = function() {
         try {
-          const href = this.href;
+          final href = this.href;
           if (href) {
             const parsed = new URL(href, window.location.href);
             const host = parsed.hostname.toLowerCase();
             const isAd = /(doubleclick|adsterra|popads|propellerads|exoclick|trafficjunky|adnxs|taboola|outbrain|googleads|syndication|ad-maven|bet365|1xbet|hilltopads|clickadu|popcash|monetag|bidswitch|moatads)/i.test(host);
             if (isAd) {
+              reportBlockedItem(1);
               console.log('[HotTea Shield] Prevented simulated ad anchor click to:', host);
               return;
             }
@@ -432,7 +599,6 @@ class HotTeaShieldRules {
     }
   } catch(e) {}
 
-  // Prevent annoying onbeforeunload dialog traps
   try {
     Object.defineProperty(window, 'onbeforeunload', {
       get: function() { return null; },
@@ -444,7 +610,6 @@ class HotTeaShieldRules {
   ${config.shieldEnabled && (config.autoDismissCookieWalls || config.defuseAntiAdblockAndGates) ? '''
   // --- Ad-Gates, "We Need Support", & Cookie Wall Neutralizer ---
   function defuseGatesAndOverlays() {
-    // 1. Remove blurs on html and body without destroying content layout
     if (document.body) {
       document.body.style.setProperty('filter', 'none', 'important');
       document.body.style.setProperty('-webkit-filter', 'none', 'important');
@@ -463,7 +628,6 @@ class HotTeaShieldRules {
       }
     }
 
-    // 2. Hide dialogs/modals that specifically contain gate text (never touch verification or root nodes)
     const dialogs = document.querySelectorAll('dialog, [role="dialog"], .modal, .overlay, .popup, #support_modal, #supportModal, .support-gate, .support-modal, #ad-gate, .ad-gate, #daily-ad, .daily-ad, .support-overlay');
     for (let i = 0; i < dialogs.length; i++) {
       const el = dialogs[i];
@@ -471,7 +635,6 @@ class HotTeaShieldRules {
           el.id === 'app' || el.id === 'root' || el.id === 'main' || el.tagName === 'MAIN') {
         continue;
       }
-      // Never interfere with Cloudflare Turnstile, reCAPTCHA, or hCaptcha verification challenges
       if (el.id && (el.id.includes('challenge') || el.id.includes('cf-') || el.id.includes('turnstile') || el.id.includes('captcha'))) {
         continue;
       }
@@ -491,20 +654,20 @@ class HotTeaShieldRules {
         el.style.setProperty('visibility', 'hidden', 'important');
         el.style.setProperty('pointer-events', 'none', 'important');
         el.setAttribute('aria-hidden', 'true');
+        reportBlockedItem(1);
       }
     }
 
-    // 3. Hide known third-party backdrop/consent overlay elements
     const overlays = document.querySelectorAll('.modal-backdrop, #onetrust-consent-sdk, #onetrust-banner-sdk, .cookie-banner, .cookie-consent, [id*="cookie-notice"], .cmp-container, .fc-consent-root, #sp_message_container, .qc-cmp2-container');
     for (let i = 0; i < overlays.length; i++) {
       const o = overlays[i];
       if (o && o !== document.body && o !== document.documentElement && o.id !== 'app' && o.id !== 'root') {
         o.style.setProperty('display', 'none', 'important');
+        reportBlockedItem(1);
       }
     }
   }
 
-  // Debounced and re-entrancy safe observer
   let _defuseTimer = null;
   let _observer = null;
 

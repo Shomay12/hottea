@@ -15,6 +15,7 @@ import 'features/browser/domain/browser_tab.dart';
 import 'features/browser/domain/download_item.dart';
 import 'features/browser/domain/search_engine.dart';
 import 'features/browser/domain/hottea_shield_rules.dart';
+import 'features/browser/domain/shield_stats.dart';
 import 'features/research/data/webpage_extraction_service.dart';
 import 'core/utils/external_launcher.dart';
 import 'core/theme/glass_theme.dart';
@@ -178,6 +179,11 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
 
   // HotTea Shield & Redirection Protections State
   HotTeaShieldConfig _shieldConfig = const HotTeaShieldConfig();
+  int _totalBlockedTrackers = 0;
+  ShieldStats get _shieldStats => ShieldStats(
+        trackersBlockedOnPage: _activeTab.blockedCount,
+        totalTrackersBlocked: _totalBlockedTrackers,
+      );
 
   // AI Gateway State
   late final AiGateway _aiGateway;
@@ -408,6 +414,17 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
       final sameTabStr = await _persistenceRepo.getSetting('same_tab_redirection');
       final defuseAntiAdblockStr = await _persistenceRepo.getSetting('defuse_anti_adblock');
       final autoDismissWallsStr = await _persistenceRepo.getSetting('auto_dismiss_cookie_walls');
+      final cleanUrlsStr = await _persistenceRepo.getSetting('clean_urls');
+      final deAmpStr = await _persistenceRepo.getSetting('deamp_enabled');
+      final farblingStr = await _persistenceRepo.getSetting('block_fingerprinting');
+      final scriptsStr = await _persistenceRepo.getSetting('block_scripts');
+      final aggressiveStr = await _persistenceRepo.getSetting('aggressive_ad_blocking');
+      final disabledDomainsStr = await _persistenceRepo.getSetting('disabled_domains') ?? '';
+      final totalBlockedStr = await _persistenceRepo.getSetting('shield_total_blocked_count');
+
+      final disabled = disabledDomainsStr.isEmpty
+          ? <String>{}
+          : disabledDomainsStr.split(',').map((e) => e.trim().toLowerCase()).where((e) => e.isNotEmpty).toSet();
 
       final loaded = HotTeaShieldConfig(
         shieldEnabled: shieldEnabledStr != 'false',
@@ -416,11 +433,20 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
         keepNavigationsInSameTab: sameTabStr != 'false',
         defuseAntiAdblockAndGates: defuseAntiAdblockStr != 'false',
         autoDismissCookieWalls: autoDismissWallsStr != 'false',
+        cleanUrls: cleanUrlsStr != 'false',
+        deAmpEnabled: deAmpStr != 'false',
+        blockFingerprinting: farblingStr != 'false',
+        blockScripts: scriptsStr == 'true',
+        aggressiveAdBlocking: aggressiveStr == 'true',
+        disabledDomains: disabled,
       );
+
+      final totalBlocked = int.tryParse(totalBlockedStr ?? '0') ?? 0;
 
       if (mounted) {
         setState(() {
           _shieldConfig = loaded;
+          _totalBlockedTrackers = totalBlocked;
         });
         for (final tab in _tabs) {
           tab.updateShieldConfig(loaded);
@@ -585,6 +611,17 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
       },
     );
 
+    tab.blockedCountStream.listen((count) {
+      if (mounted && count > 0) {
+        setState(() {
+          _totalBlockedTrackers += 1;
+        });
+        if (_isRepoInitialized) {
+          _persistenceRepo.setSetting('shield_total_blocked_count', _totalBlockedTrackers.toString());
+        }
+      }
+    });
+
     setState(() {
       _tabs.add(tab);
       _activeTabIndex = _tabs.length - 1;
@@ -710,7 +747,11 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
     final text = (rawText ?? _urlController.text).trim();
     if (text.isEmpty) return;
 
-    final parseResult = AddressBarParser.parse(text, engine: _selectedSearchEngine);
+    final parseResult = AddressBarParser.parse(
+      text,
+      engine: _selectedSearchEngine,
+      cleanUrls: _shieldConfig.cleanUrls,
+    );
 
     switch (parseResult.type) {
       case AddressBarInputType.empty:
@@ -2236,6 +2277,44 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
               ],
             ),
           ),
+          const SizedBox(height: 12),
+          // Brave Shields Mobile Metrics
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF161922),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFD48B47).withAlpha(60)),
+            ),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildHubStatItem(
+                    icon: Icons.shield,
+                    value: '$_totalBlockedTrackers',
+                    label: 'Blocked',
+                    color: const Color(0xFFD48B47),
+                  ),
+                  Container(height: 20, width: 1, color: Colors.white12, margin: const EdgeInsets.symmetric(horizontal: 12)),
+                  _buildHubStatItem(
+                    icon: Icons.data_usage,
+                    value: _shieldStats.formattedBandwidthSaved,
+                    label: 'Data Saved',
+                    color: Colors.greenAccent,
+                  ),
+                  Container(height: 20, width: 1, color: Colors.white12, margin: const EdgeInsets.symmetric(horizontal: 12)),
+                  _buildHubStatItem(
+                    icon: Icons.speed,
+                    value: _shieldStats.formattedTimeSaved,
+                    label: 'Saved',
+                    color: Colors.amberAccent,
+                  ),
+                ],
+              ),
+            ),
+          ),
           const SizedBox(height: 18),
           Container(
             height: 44,
@@ -2321,6 +2400,44 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildHubStatItem({
+    required IconData icon,
+    required String value,
+    required String label,
+    required Color color,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 4),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 10,
+            color: Colors.white54,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
     );
   }
 
@@ -3044,25 +3161,54 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
                 style: const TextStyle(fontSize: 13, color: Colors.white54),
               ),
               const SizedBox(height: 14),
+              // Brave Shields Dashboard Metrics
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 decoration: BoxDecoration(
-                  color: GlassTheme.accentTea.withAlpha(20),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: GlassTheme.accentTea.withAlpha(60)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.shield_outlined, size: 15, color: GlassTheme.accentTea),
-                    const SizedBox(width: 8),
-                    Text(
-                      _shieldConfig.shieldEnabled
-                          ? 'HotTea Shield Active'
-                          : 'HotTea Shield Disabled',
-                      style: const TextStyle(fontSize: 12, color: Colors.white70, fontWeight: FontWeight.w500),
-                    ),
+                  color: const Color(0xFF161922),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFD48B47).withAlpha(70)),
+                  boxShadow: const [
+                    BoxShadow(color: Colors.black38, blurRadius: 16, offset: Offset(0, 4)),
                   ],
+                ),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildHubStatItem(
+                        icon: Icons.shield,
+                        value: '$_totalBlockedTrackers',
+                        label: 'Trackers Blocked',
+                        color: const Color(0xFFD48B47),
+                      ),
+                      Container(
+                        height: 28,
+                        width: 1,
+                        color: Colors.white12,
+                        margin: const EdgeInsets.symmetric(horizontal: 16),
+                      ),
+                      _buildHubStatItem(
+                        icon: Icons.data_usage,
+                        value: _shieldStats.formattedBandwidthSaved,
+                        label: 'Bandwidth Saved',
+                        color: Colors.greenAccent,
+                      ),
+                      Container(
+                        height: 28,
+                        width: 1,
+                        color: Colors.white12,
+                        margin: const EdgeInsets.symmetric(horizontal: 16),
+                      ),
+                      _buildHubStatItem(
+                        icon: Icons.speed,
+                        value: _shieldStats.formattedTimeSaved,
+                        label: 'Est. Time Saved',
+                        color: Colors.amberAccent,
+                      ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 24),
@@ -3467,20 +3613,25 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
     );
   }
 
-  // --- HotTea Shield Badge & Status Widgets ---
+  // --- HotTea Shield Badge & Status Widgets (Brave Shields Parity) ---
   Widget _buildShieldBadgeButton(BrowserTab activeTab, {bool compact = false}) {
-    final isProtected = _shieldConfig.shieldEnabled;
+    final host = activeTab.currentUrl?.host ?? '';
+    final isProtected = _shieldConfig.isShieldEnabledForHost(host);
+    final blocked = activeTab.blockedCount;
+
     return Tooltip(
       message: isProtected
-          ? 'HotTea Shield: Active & Protected (Same-tab redirects locked, anti-adblock defused, ads & 3rd-party cookies blocked)'
-          : 'HotTea Shield: Paused (Click to activate protections)',
+          ? (blocked > 0
+              ? 'HotTea Shield: $blocked items blocked on ${host.isNotEmpty ? host : "this page"}'
+              : 'HotTea Shield: Active & Protected')
+          : 'HotTea Shield: Paused for ${host.isNotEmpty ? host : "this site"}',
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(6),
           onTap: () => _showShieldStatusSheet(context, activeTab),
           child: Container(
-            padding: EdgeInsets.symmetric(horizontal: compact ? 5 : 7, vertical: 3),
+            padding: EdgeInsets.symmetric(horizontal: compact ? 6 : 8, vertical: 3),
             decoration: BoxDecoration(
               color: isProtected ? const Color(0xFFD48B47).withAlpha(35) : Colors.white10,
               borderRadius: BorderRadius.circular(6),
@@ -3488,16 +3639,43 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
                 color: isProtected ? const Color(0xFFD48B47).withAlpha(140) : Colors.white24,
                 width: 0.9,
               ),
+              boxShadow: isProtected && blocked > 0
+                  ? [
+                      BoxShadow(
+                        color: const Color(0xFFD48B47).withAlpha(60),
+                        blurRadius: 8,
+                        spreadRadius: 1,
+                      )
+                    ]
+                  : null,
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  isProtected ? Icons.security : Icons.security_outlined,
+                  isProtected ? Icons.shield : Icons.shield_outlined,
                   size: compact ? 13 : 15,
                   color: isProtected ? const Color(0xFFD48B47) : Colors.white38,
                 ),
-                if (!compact) ...[
+                if (blocked > 0) ...[
+                  const SizedBox(width: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFD48B47),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      blocked > 99 ? '99+' : blocked.toString(),
+                      style: const TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                        height: 1.1,
+                      ),
+                    ),
+                  ),
+                ] else if (!compact) ...[
                   const SizedBox(width: 4),
                   Text(
                     isProtected ? 'SHIELD' : 'PAUSED',
@@ -3525,7 +3703,11 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
       builder: (ctx) {
         return StatefulBuilder(
           builder: (context, setSheetState) {
-            final isProtected = _shieldConfig.shieldEnabled;
+            final host = activeTab.currentUrl?.host ?? '';
+            final displayHost = host.isNotEmpty ? host : 'Current Page';
+            final isSiteProtected = _shieldConfig.isShieldEnabledForHost(host);
+            final blockedCount = activeTab.blockedCount;
+
             return Container(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
               decoration: const BoxDecoration(
@@ -3550,63 +3732,209 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
                           ),
                         ),
                       ),
+                      // Top Hero Bar
                       Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.all(8),
+                            padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFD48B47).withAlpha(40),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: const Color(0xFFD48B47).withAlpha(120)),
+                              color: isSiteProtected
+                                  ? const Color(0xFFD48B47).withAlpha(45)
+                                  : Colors.white10,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isSiteProtected
+                                    ? const Color(0xFFD48B47).withAlpha(140)
+                                    : Colors.white24,
+                              ),
                             ),
-                            child: const Icon(Icons.shield, color: Color(0xFFD48B47), size: 22),
+                            child: Icon(
+                              isSiteProtected ? Icons.shield : Icons.shield_outlined,
+                              color: isSiteProtected ? const Color(0xFFD48B47) : Colors.white54,
+                              size: 24,
+                            ),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 14),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text(
-                                  'HotTea Shield',
-                                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.white),
+                                Row(
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        displayHost,
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: isSiteProtected
+                                            ? Colors.greenAccent.withAlpha(40)
+                                            : Colors.redAccent.withAlpha(40),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        isSiteProtected ? 'SHIELDS UP' : 'SHIELDS DOWN',
+                                        style: TextStyle(
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.bold,
+                                          color: isSiteProtected
+                                              ? Colors.greenAccent
+                                              : Colors.redAccent,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(height: 2),
+                                const SizedBox(height: 3),
                                 Text(
-                                  isProtected ? 'Active Protection • Frictionless Browsing' : 'Protection Paused for Session',
+                                  isSiteProtected
+                                      ? 'Brave-grade shields active for this site'
+                                      : 'Protections paused for this domain',
                                   style: TextStyle(
-                                    fontSize: 12,
-                                    color: isProtected ? const Color(0xFFD48B47) : Colors.white54,
-                                    fontWeight: FontWeight.w500,
+                                    fontSize: 11,
+                                    color: isSiteProtected
+                                        ? const Color(0xFFD48B47)
+                                        : Colors.white54,
                                   ),
                                 ),
                               ],
                             ),
                           ),
+                          // Big Site Shields UP/DOWN Switch
                           Switch(
                             activeThumbColor: const Color(0xFFD48B47),
-                            value: isProtected,
+                            activeTrackColor: const Color(0xFFD48B47).withAlpha(80),
+                            value: isSiteProtected,
                             onChanged: (val) {
-                              final updated = _shieldConfig.copyWith(shieldEnabled: val);
+                              final currentDisabled = Set<String>.from(_shieldConfig.disabledDomains);
+                              if (val) {
+                                if (host.isNotEmpty) currentDisabled.remove(host.toLowerCase());
+                              } else {
+                                if (host.isNotEmpty) currentDisabled.add(host.toLowerCase());
+                              }
+                              final updated = _shieldConfig.copyWith(
+                                shieldEnabled: true,
+                                disabledDomains: currentDisabled,
+                              );
                               _updateShieldConfig(updated);
+                              activeTab.reload();
                               setSheetState(() {});
                               setState(() {});
                             },
                           ),
                         ],
                       ),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'Redirects stay in your active tab. Intrusive ad popups, tracking cookies, and anti-adblock gates are defused openly so you reach the intended outcome without delays.',
-                        style: TextStyle(fontSize: 12, color: Colors.white70, height: 1.3),
+                      const SizedBox(height: 16),
+
+                      // Metrics Cards (3-column frosted cards)
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildMetricCard(
+                              icon: Icons.block,
+                              value: blockedCount.toString(),
+                              label: 'Page Blocked',
+                              color: const Color(0xFFD48B47),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _buildMetricCard(
+                              icon: Icons.all_inclusive,
+                              value: _totalBlockedTrackers.toString(),
+                              label: 'Lifetime Blocked',
+                              color: Colors.amberAccent,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _buildMetricCard(
+                              icon: Icons.data_usage,
+                              value: _shieldStats.formattedBandwidthSaved,
+                              label: 'Data Saved',
+                              color: Colors.greenAccent,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 16),
                       const Divider(color: Colors.white12, height: 1),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 12),
+
+                      // Advanced Protections List
+                      const Text(
+                        'ADVANCED PRIVACY CONTROLS',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.8,
+                          color: Color(0xFFD48B47),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+
+                      _buildShieldStatusRow(
+                        icon: Icons.fingerprint,
+                        title: 'Brave-Grade Farbling Defenses',
+                        subtitle: 'Randomizes Canvas, Audio, WebGL, and Hardware hashes to defeat fingerprinting bots.',
+                        isActive: _shieldConfig.blockFingerprinting && isSiteProtected,
+                        onToggle: (v) {
+                          final u = _shieldConfig.copyWith(blockFingerprinting: v);
+                          _updateShieldConfig(u);
+                          setSheetState(() {});
+                          setState(() {});
+                        },
+                      ),
+                      _buildShieldStatusRow(
+                        icon: Icons.link_off,
+                        title: 'Clean URLs & QueryFilter',
+                        subtitle: 'Automatically strips utm_*, fbclid, gclid, and invasive marketing tokens.',
+                        isActive: _shieldConfig.cleanUrls && isSiteProtected,
+                        onToggle: (v) {
+                          final u = _shieldConfig.copyWith(cleanUrls: v);
+                          _updateShieldConfig(u);
+                          setSheetState(() {});
+                          setState(() {});
+                        },
+                      ),
+                      _buildShieldStatusRow(
+                        icon: Icons.speed,
+                        title: 'De-AMP Canonical Redirection',
+                        subtitle: 'Unwraps Google AMP caches directly to publisher canonical URLs.',
+                        isActive: _shieldConfig.deAmpEnabled && isSiteProtected,
+                        onToggle: (v) {
+                          final u = _shieldConfig.copyWith(deAmpEnabled: v);
+                          _updateShieldConfig(u);
+                          setSheetState(() {});
+                          setState(() {});
+                        },
+                      ),
+                      _buildShieldStatusRow(
+                        icon: Icons.security,
+                        title: 'Aggressive Ad & Tracker Filtering',
+                        subtitle: 'Strict network blocking and expanded cosmetic CSS element hiding.',
+                        isActive: _shieldConfig.aggressiveAdBlocking && isSiteProtected,
+                        onToggle: (v) {
+                          final u = _shieldConfig.copyWith(aggressiveAdBlocking: v);
+                          _updateShieldConfig(u);
+                          setSheetState(() {});
+                          setState(() {});
+                        },
+                      ),
                       _buildShieldStatusRow(
                         icon: Icons.tab_unselected,
                         title: 'Same-Tab Redirection Lock',
-                        subtitle: 'Redirects and links stay in this tab — never get lost or hijacked into stray tabs.',
-                        isActive: _shieldConfig.keepNavigationsInSameTab && isProtected,
+                        subtitle: 'Redirects and links stay in this tab — never get hijacked into stray tabs.',
+                        isActive: _shieldConfig.keepNavigationsInSameTab && isSiteProtected,
                         onToggle: (v) {
                           final u = _shieldConfig.copyWith(keepNavigationsInSameTab: v);
                           _updateShieldConfig(u);
@@ -3617,8 +3945,8 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
                       _buildShieldStatusRow(
                         icon: Icons.flash_on,
                         title: 'Anti-Adblock Defuser & Verification',
-                        subtitle: 'Spoofs ad and telemetry checks so servers load destination content directly.',
-                        isActive: _shieldConfig.defuseAntiAdblockAndGates && isProtected,
+                        subtitle: 'Spoofs telemetry and ad checks so servers load destination content directly.',
+                        isActive: _shieldConfig.defuseAntiAdblockAndGates && isSiteProtected,
                         onToggle: (v) {
                           final u = _shieldConfig.copyWith(defuseAntiAdblockAndGates: v);
                           _updateShieldConfig(u);
@@ -3627,22 +3955,10 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
                         },
                       ),
                       _buildShieldStatusRow(
-                        icon: Icons.block,
-                        title: 'Ad & Tracker Network Blocker',
-                        subtitle: 'Filters DoubleClick, PopAds, Adsterra, telemetry beacons, and popup traps.',
-                        isActive: _shieldConfig.blockAdsAndTrackers && isProtected,
-                        onToggle: (v) {
-                          final u = _shieldConfig.copyWith(blockAdsAndTrackers: v);
-                          _updateShieldConfig(u);
-                          setSheetState(() {});
-                          setState(() {});
-                        },
-                      ),
-                      _buildShieldStatusRow(
                         icon: Icons.cookie_outlined,
-                        title: 'Cookie Privacy (3rd-Party Blocked)',
-                        subtitle: 'Cross-site trackers blocked while 1st-party logins and state are preserved intact.',
-                        isActive: _shieldConfig.blockThirdPartyCookies && isProtected,
+                        title: 'Cross-Site Cookie Blocking',
+                        subtitle: 'Blocks third-party trackers while preserving first-party authentication.',
+                        isActive: _shieldConfig.blockThirdPartyCookies && isSiteProtected,
                         onToggle: (v) {
                           final u = _shieldConfig.copyWith(blockThirdPartyCookies: v);
                           _updateShieldConfig(u);
@@ -3653,8 +3969,8 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
                       _buildShieldStatusRow(
                         icon: Icons.cleaning_services,
                         title: 'Intrusive Cookie Consent Cleaner',
-                        subtitle: 'Automatically dismisses annoying GDPR/Cookie banners and unfreezes page scrollbars.',
-                        isActive: _shieldConfig.autoDismissCookieWalls && isProtected,
+                        subtitle: 'Automatically dismisses annoying GDPR/Cookie banners and unfreezes pages.',
+                        isActive: _shieldConfig.autoDismissCookieWalls && isSiteProtected,
                         onToggle: (v) {
                           final u = _shieldConfig.copyWith(autoDismissCookieWalls: v);
                           _updateShieldConfig(u);
@@ -3662,7 +3978,19 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
                           setState(() {});
                         },
                       ),
-                      const SizedBox(height: 14),
+                      _buildShieldStatusRow(
+                        icon: Icons.code_off,
+                        title: 'Block Scripts (JavaScript Toggle)',
+                        subtitle: 'Disables script execution for maximal security and speed on this domain.',
+                        isActive: _shieldConfig.blockScripts && isSiteProtected,
+                        onToggle: (v) {
+                          final u = _shieldConfig.copyWith(blockScripts: v);
+                          _updateShieldConfig(u);
+                          setSheetState(() {});
+                          setState(() {});
+                        },
+                      ),
+                      const SizedBox(height: 16),
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
@@ -3684,6 +4012,40 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
           },
         );
       },
+    );
+  }
+
+  Widget _buildMetricCard({
+    required IconData icon,
+    required String value,
+    required String label,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E222D),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withAlpha(50)),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 10, color: Colors.white54),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
     );
   }
 
@@ -5745,6 +6107,47 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
   );
 }
 
+  Future<void> _summarizeActivePageWithAi() async {
+    final pageText = await _extractActivePageText();
+    _aiPromptController.text =
+        'Please provide a concise, structured summary and key takeaways of the following webpage:\n\n'
+        'Title: ${_activeTab.currentTitle}\n'
+        'URL: ${_activeTab.currentUrl}\n\n'
+        'Content:\n$pageText';
+    await _sendAiRequest();
+  }
+
+  Future<void> _extractKeyInsightsWithAi() async {
+    final pageText = await _extractActivePageText();
+    _aiPromptController.text =
+        'Extract bulleted key research insights, facts, and actionable conclusions from the following webpage:\n\n'
+        'Title: ${_activeTab.currentTitle}\n'
+        'URL: ${_activeTab.currentUrl}\n\n'
+        'Content:\n$pageText';
+    await _sendAiRequest();
+  }
+
+  Future<void> _explainConceptsWithAi() async {
+    final pageText = await _extractActivePageText();
+    _aiPromptController.text =
+        'Explain the core technical concepts, terminology, or methods described on this page in clear, accessible language:\n\n'
+        'Title: ${_activeTab.currentTitle}\n'
+        'URL: ${_activeTab.currentUrl}\n\n'
+        'Content:\n$pageText';
+    await _sendAiRequest();
+  }
+
+  Future<String> _extractActivePageText() async {
+    try {
+      final res = await _extractionService.extractFromEngine(_activeTab.engine);
+      if (res.isSuccess && res.source != null && res.source!.extractedText != null && res.source!.extractedText!.isNotEmpty) {
+        final text = res.source!.extractedText!;
+        return text.length > 3000 ? '${text.substring(0, 3000)}...\n[Truncated for context]' : text;
+      }
+    } catch (_) {}
+    return 'Webpage: ${_activeTab.currentTitle} (${_activeTab.currentUrl})';
+  }
+
   Future<void> _sendAiRequest() async {
     final prompt = _aiPromptController.text.trim();
     if (prompt.isEmpty) {
@@ -6038,6 +6441,46 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
           ),
         ),
         const SizedBox(height: 14),
+
+        // Brave Leo-Style In-Context Quick Actions
+        if (_activeTab.currentUrl != null && _activeTab.currentUrl.toString() != 'about:blank') ...[
+          const Row(
+            children: [
+              Icon(Icons.bolt, size: 14, color: Color(0xFFD48B47)),
+              SizedBox(width: 4),
+              Text(
+                'Active Page Research Actions',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white70),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              ActionChip(
+                avatar: const Icon(Icons.summarize_outlined, size: 14, color: Color(0xFFD48B47)),
+                label: const Text('Summarize Page', style: TextStyle(fontSize: 11)),
+                backgroundColor: const Color(0xFF1B1E27),
+                onPressed: _summarizeActivePageWithAi,
+              ),
+              ActionChip(
+                avatar: const Icon(Icons.lightbulb_outline, size: 14, color: Colors.amberAccent),
+                label: const Text('Key Insights', style: TextStyle(fontSize: 11)),
+                backgroundColor: const Color(0xFF1B1E27),
+                onPressed: _extractKeyInsightsWithAi,
+              ),
+              ActionChip(
+                avatar: const Icon(Icons.code, size: 14, color: Colors.cyanAccent),
+                label: const Text('Explain Concepts', style: TextStyle(fontSize: 11)),
+                backgroundColor: const Color(0xFF1B1E27),
+                onPressed: _explainConceptsWithAi,
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+        ],
 
         // Prompt Input
         const Text('AI Prompt', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white70)),

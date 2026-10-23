@@ -1,4 +1,5 @@
 import 'search_engine.dart';
+import 'url_cleaner.dart';
 
 /// The result classification for user input entered into the browser's address bar.
 enum AddressBarInputType {
@@ -103,9 +104,11 @@ class AddressBarParser {
   /// Classifies user [rawInput] and converts it to an [AddressBarParseResult].
   ///
   /// If the input is a search query, [engine] is used to construct the search URI.
+  /// When [cleanUrls] is true, tracking parameters and AMP wrappers are removed.
   static AddressBarParseResult parse(
     String rawInput, {
     SearchEngine engine = SearchEngineRegistry.defaultEngine,
+    bool cleanUrls = true,
   }) {
     final trimmed = rawInput.trim();
 
@@ -124,7 +127,8 @@ class AddressBarParser {
       if (scheme == 'http' || scheme == 'https') {
         final parsed = Uri.tryParse(trimmed);
         if (parsed != null && parsed.hasAuthority && parsed.host.isNotEmpty) {
-          return AddressBarParseResult.directNavigation(parsed);
+          final target = cleanUrls ? UrlCleaner.clean(parsed) : parsed;
+          return AddressBarParseResult.directNavigation(target);
         } else {
           // Explicit http/https URL with malformed authority must NOT silently fall back to search.
           return AddressBarParseResult.unsupportedScheme(

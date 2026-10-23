@@ -126,6 +126,9 @@ abstract class BrowserEngine {
   Stream<bool> get canGoForwardStream;
   Stream<BrowserNavigationError?> get errorStream;
 
+  /// Stream reporting the count of ads/trackers/elements blocked on the active page.
+  Stream<int> get blockedCountStream;
+
   /// Current synchronous state getters.
   Uri? get currentUrl;
   String get currentTitle;
@@ -134,6 +137,12 @@ abstract class BrowserEngine {
   bool get canGoBack;
   bool get canGoForward;
   BrowserNavigationError? get currentError;
+
+  /// Number of trackers, ads, and traps blocked on the active page.
+  int get blockedCount;
+
+  /// Records blocked tracker(s) on the active page.
+  void recordBlockedItem([int count = 1]);
 
   /// Active platform capabilities for this engine.
   BrowserPlatformCapabilities get capabilities;
@@ -161,6 +170,8 @@ class MockBrowserEngine implements BrowserEngine {
   final _canGoBackController = StreamController<bool>.broadcast();
   final _canGoForwardController = StreamController<bool>.broadcast();
   final _errorController = StreamController<BrowserNavigationError?>.broadcast();
+  final _blockedCountController = StreamController<int>.broadcast();
+  int _blockedCount = 0;
 
   final List<Uri> _history = [];
   int _historyIndex = -1;
@@ -210,6 +221,8 @@ class MockBrowserEngine implements BrowserEngine {
   @override
   Future<void> loadUrl(Uri url) async {
     clearError();
+    _blockedCount = 0;
+    _blockedCountController.add(0);
     _isLoading = true;
     _loadingController.add(true);
     _progressController.add(0.2);
@@ -228,7 +241,8 @@ class MockBrowserEngine implements BrowserEngine {
     }
 
     // Shield check: Block ad/tracker domains
-    if (_shieldConfig.shieldEnabled && _shieldConfig.blockAdsAndTrackers && HotTeaShieldRules.isAdOrTracker(url)) {
+    if (_shieldConfig.isShieldEnabledForHost(url.host) && _shieldConfig.blockAdsAndTrackers && HotTeaShieldRules.isAdOrTracker(url)) {
+      recordBlockedItem(1);
       _isLoading = false;
       _loadingController.add(false);
       _progressController.add(1.0);
@@ -367,6 +381,7 @@ class MockBrowserEngine implements BrowserEngine {
     await _canGoBackController.close();
     await _canGoForwardController.close();
     await _errorController.close();
+    await _blockedCountController.close();
   }
 
   @override
@@ -410,4 +425,16 @@ class MockBrowserEngine implements BrowserEngine {
 
   @override
   BrowserNavigationError? get currentError => _currentError;
+
+  @override
+  Stream<int> get blockedCountStream => _blockedCountController.stream;
+
+  @override
+  int get blockedCount => _blockedCount;
+
+  @override
+  void recordBlockedItem([int count = 1]) {
+    _blockedCount += count;
+    _blockedCountController.add(_blockedCount);
+  }
 }

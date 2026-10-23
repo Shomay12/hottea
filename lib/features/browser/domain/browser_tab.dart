@@ -18,6 +18,7 @@ class BrowserTab {
   StreamSubscription<bool>? _canGoBackSub;
   StreamSubscription<bool>? _canGoForwardSub;
   StreamSubscription<BrowserNavigationError?>? _errorSub;
+  StreamSubscription<int>? _blockedSub;
 
   final void Function()? onStateChanged;
 
@@ -38,6 +39,7 @@ class BrowserTab {
     _canGoBackSub = engine.canGoBackStream.listen((_) => onStateChanged?.call());
     _canGoForwardSub = engine.canGoForwardStream.listen((_) => onStateChanged?.call());
     _errorSub = engine.errorStream.listen((_) => onStateChanged?.call());
+    _blockedSub = engine.blockedCountStream.listen((_) => onStateChanged?.call());
   }
 
   Uri? get currentUrl => engine.currentUrl;
@@ -50,6 +52,10 @@ class BrowserTab {
   bool get isPrivate => engine.isPrivate;
   double get zoomLevel => engine.zoomLevel;
   HotTeaShieldConfig get shieldConfig => engine.shieldConfig;
+  int get blockedCount => engine.blockedCount;
+  Stream<int> get blockedCountStream => engine.blockedCountStream;
+
+  void recordBlockedItem([int count = 1]) => engine.recordBlockedItem(count);
 
   void updateShieldConfig(HotTeaShieldConfig config) => engine.updateShieldConfig(config);
 
@@ -75,6 +81,7 @@ class BrowserTab {
     await _canGoBackSub?.cancel();
     await _canGoForwardSub?.cancel();
     await _errorSub?.cancel();
+    await _blockedSub?.cancel();
     await engine.dispose();
   }
 }

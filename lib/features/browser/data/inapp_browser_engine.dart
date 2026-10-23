@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import '../domain/browser_engine.dart';
 import '../domain/hottea_shield_rules.dart';
+import '../domain/url_cleaner.dart';
 import 'download_manager.dart';
 
 /// Real browser engine integration backed by [InAppWebView].
@@ -25,6 +26,8 @@ class InAppBrowserEngine implements BrowserEngine {
   final _canGoBackController = StreamController<bool>.broadcast();
   final _canGoForwardController = StreamController<bool>.broadcast();
   final _errorController = StreamController<BrowserNavigationError?>.broadcast();
+  final _blockedCountController = StreamController<int>.broadcast();
+  int _blockedCount = 0;
 
   Uri? _currentUrl;
   Uri? _pendingUrl;
@@ -110,19 +113,28 @@ class InAppBrowserEngine implements BrowserEngine {
   @override
   Future<void> loadUrl(Uri url) async {
     clearError();
+    _blockedCount = 0;
+    _blockedCountController.add(0);
+
+    // Apply Brave QueryFilter and De-AMP if enabled
+    final targetUrl = UrlCleaner.clean(
+      url,
+      deAmpEnabled: _shieldConfig.deAmpEnabled,
+      stripTrackers: _shieldConfig.cleanUrls,
+    );
 
     // Scheme validation
-    if (url.scheme != 'http' && url.scheme != 'https' && url.scheme != 'about') {
+    if (targetUrl.scheme != 'http' && targetUrl.scheme != 'https' && targetUrl.scheme != 'about') {
       _currentError = BrowserNavigationError(
-        failedUrl: url,
-        message: 'Unsupported protocol scheme "${url.scheme}". HotTea requires http:// or https://.',
+        failedUrl: targetUrl,
+        message: 'Unsupported protocol scheme "${targetUrl.scheme}". HotTea requires http:// or https://.',
       );
       _errorController.add(_currentError);
       return;
     }
 
-    _currentUrl = url;
-    _urlController.add(url);
+    _currentUrl = targetUrl;
+    _urlController.add(targetUrl);
     _isLoading = true;
     _loadingController.add(true);
     _progressController.add(0.1);
@@ -131,11 +143,11 @@ class InAppBrowserEngine implements BrowserEngine {
       _pendingUrl = null;
       try {
         await _webViewController!.loadUrl(
-          urlRequest: URLRequest(url: WebUri.uri(url)),
+          urlRequest: URLRequest(url: WebUri.uri(targetUrl)),
         );
       } catch (e) {
         _currentError = BrowserNavigationError(
-          failedUrl: url,
+          failedUrl: targetUrl,
           message: 'Failed to initiate navigation: $e',
         );
         _errorController.add(_currentError);
@@ -320,9 +332,10 @@ class InAppBrowserEngine implements BrowserEngine {
         final targetUrl = request.url?.uriValue;
         if (targetUrl != null) {
           // Block known malicious ad or tracking popups
-          if (_shieldConfig.shieldEnabled &&
+          if (_shieldConfig.isShieldEnabledForHost(targetUrl.host) &&
               _shieldConfig.blockAdsAndTrackers &&
               HotTeaShieldRules.isAdOrTracker(targetUrl)) {
+            recordBlockedItem(1);
             return true; // Filtered & suppressed
           }
           // Same-tab redirection: load destination in the active tab without spawning external windows or losing place
@@ -344,9 +357,10 @@ class InAppBrowserEngine implements BrowserEngine {
         }
 
         // Block ad network redirects attempting to hijack the active tab
-        if (_shieldConfig.shieldEnabled &&
+        if (_shieldConfig.isShieldEnabledForHost(uri.host) &&
             _shieldConfig.blockAdsAndTrackers &&
             HotTeaShieldRules.isAdOrTracker(uri)) {
+          recordBlockedItem(1);
           return NavigationActionPolicy.CANCEL;
         }
 
@@ -354,6 +368,19 @@ class InAppBrowserEngine implements BrowserEngine {
       },
       onWebViewCreated: (controller) async {
         _webViewController = controller;
+
+        // Bridge to receive live blocked tracker and farbled element reports from injected Shield script
+        controller.addJavaScriptHandler(
+          handlerName: 'onShieldBlockedItem',
+          callback: (args) {
+            if (args.isNotEmpty && args[0] is int) {
+              _blockedCount = args[0] as int;
+              _blockedCountController.add(_blockedCount);
+            } else {
+              recordBlockedItem(1);
+            }
+          },
+        );
         if (_pendingUrl != null) {
           final target = _pendingUrl!;
           _pendingUrl = null;
@@ -466,6 +493,7 @@ class InAppBrowserEngine implements BrowserEngine {
     await _canGoBackController.close();
     await _canGoForwardController.close();
     await _errorController.close();
+    await _blockedCountController.close();
   }
 
   @override
@@ -490,6 +518,9 @@ class InAppBrowserEngine implements BrowserEngine {
   Stream<BrowserNavigationError?> get errorStream => _errorController.stream;
 
   @override
+  Stream<int> get blockedCountStream => _blockedCountController.stream;
+
+  @override
   Uri? get currentUrl => _currentUrl;
 
   @override
@@ -509,4 +540,13 @@ class InAppBrowserEngine implements BrowserEngine {
 
   @override
   BrowserNavigationError? get currentError => _currentError;
+
+  @override
+  int get blockedCount => _blockedCount;
+
+  @override
+  void recordBlockedItem([int count = 1]) {
+    _blockedCount += count;
+    _blockedCountController.add(_blockedCount);
+  }
 }

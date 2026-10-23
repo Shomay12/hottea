@@ -33,6 +33,7 @@ class HotTeaApp extends StatelessWidget {
   final bool forceMockBrowser;
   final AiGateway? aiGateway;
   final ThemeMode? initialThemeMode;
+  final Uri? initialUrl;
 
   const HotTeaApp({
     super.key,
@@ -40,6 +41,7 @@ class HotTeaApp extends StatelessWidget {
     this.forceMockBrowser = false,
     this.aiGateway,
     this.initialThemeMode,
+    this.initialUrl,
   });
 
   @override
@@ -86,6 +88,7 @@ class HotTeaApp extends StatelessWidget {
             persistenceRepository: persistenceRepository,
             forceMockBrowser: forceMockBrowser,
             aiGateway: aiGateway,
+            initialUrl: initialUrl,
           ),
         );
       },
@@ -97,12 +100,14 @@ class HotTeaWorkspaceScreen extends StatefulWidget {
   final bool forceMockBrowser;
   final LocalPersistenceRepository? persistenceRepository;
   final AiGateway? aiGateway;
+  final Uri? initialUrl;
 
   const HotTeaWorkspaceScreen({
     super.key,
     this.forceMockBrowser = false,
     this.persistenceRepository,
     this.aiGateway,
+    this.initialUrl,
   });
 
   @override
@@ -167,8 +172,8 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
   bool _restoreSessionEnabled = false;
 
   // User Preferences (Phase 4 & 6)
-  String _homepageUrl = 'https://docs.flutter.dev';
-  final TextEditingController _homepageController = TextEditingController(text: 'https://docs.flutter.dev');
+  String _homepageUrl = 'about:blank';
+  final TextEditingController _homepageController = TextEditingController(text: 'about:blank');
   ThemeMode _currentThemeMode = ThemeMode.dark;
 
   // HotTea Shield & Redirection Protections State
@@ -193,7 +198,7 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
     _persistenceRepo = widget.persistenceRepository ?? SqlitePersistenceRepository();
     _aiGateway = widget.aiGateway ?? AiGatewayImpl();
     _initPersistenceAndLoad();
-    _createNewTab(Uri.parse('https://docs.flutter.dev'));
+    _createNewTab(widget.initialUrl ?? Uri.parse(_homepageUrl));
   }
 
   @override
@@ -2211,7 +2216,27 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
             'Search with ${_selectedSearchEngine.name} • Zero Telemetry',
             style: const TextStyle(fontSize: 11, color: Colors.white54),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: GlassTheme.accentTea.withAlpha(20),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: GlassTheme.accentTea.withAlpha(50)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.shield_outlined, size: 12, color: GlassTheme.accentTea),
+                const SizedBox(width: 4),
+                Text(
+                  _shieldConfig.shieldEnabled ? 'Shield Active' : 'Shield Off',
+                  style: const TextStyle(fontSize: 10, color: Colors.white70, fontWeight: FontWeight.w500),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
           Container(
             height: 44,
             decoration: BoxDecoration(
@@ -2241,11 +2266,13 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
             spacing: 8,
             runSpacing: 8,
             children: [
-              _buildMobileQuickCard('Flutter Docs', Icons.flutter_dash, 'https://docs.flutter.dev'),
-              _buildMobileQuickCard('Dart Pub', Icons.extension_outlined, 'https://pub.dev'),
-              _buildMobileQuickCard('GitHub', Icons.code, 'https://github.com'),
+              _buildMobileQuickCard('Google', Icons.search, 'https://www.google.com'),
+              _buildMobileQuickCard('YouTube', Icons.play_circle_fill, 'https://www.youtube.com'),
               _buildMobileQuickCard('Wikipedia', Icons.menu_book, 'https://en.wikipedia.org'),
+              _buildMobileQuickCard('GitHub', Icons.code, 'https://github.com'),
+              _buildMobileQuickCard('Reddit', Icons.forum_outlined, 'https://www.reddit.com'),
               _buildMobileQuickCard('Hacker News', Icons.newspaper, 'https://news.ycombinator.com'),
+              _buildMobileQuickCard('Flutter Docs', Icons.flutter_dash, 'https://docs.flutter.dev'),
               _buildMobileQuickCard('ArXiv', Icons.science_outlined, 'https://arxiv.org'),
             ],
           ),
@@ -3016,7 +3043,29 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
                 'Privacy-First • Local Storage • ${_selectedSearchEngine.name} Search',
                 style: const TextStyle(fontSize: 13, color: Colors.white54),
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: GlassTheme.accentTea.withAlpha(20),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: GlassTheme.accentTea.withAlpha(60)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.shield_outlined, size: 15, color: GlassTheme.accentTea),
+                    const SizedBox(width: 8),
+                    Text(
+                      _shieldConfig.shieldEnabled
+                          ? 'HotTea Shield Active'
+                          : 'HotTea Shield Disabled',
+                      style: const TextStyle(fontSize: 12, color: Colors.white70, fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
               Container(
                 height: 48,
                 decoration: BoxDecoration(
@@ -3073,11 +3122,13 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
                 spacing: 12,
                 runSpacing: 12,
                 children: [
-                  _buildQuickAccessCard('Flutter Docs', 'docs.flutter.dev', Icons.flutter_dash, 'https://docs.flutter.dev'),
-                  _buildQuickAccessCard('Dart Pub', 'pub.dev', Icons.extension_outlined, 'https://pub.dev'),
-                  _buildQuickAccessCard('GitHub', 'github.com', Icons.code, 'https://github.com'),
+                  _buildQuickAccessCard('Google', 'google.com', Icons.search, 'https://www.google.com'),
+                  _buildQuickAccessCard('YouTube', 'youtube.com', Icons.play_circle_fill, 'https://www.youtube.com'),
                   _buildQuickAccessCard('Wikipedia', 'wikipedia.org', Icons.menu_book, 'https://en.wikipedia.org'),
+                  _buildQuickAccessCard('GitHub', 'github.com', Icons.code, 'https://github.com'),
+                  _buildQuickAccessCard('Reddit', 'reddit.com', Icons.forum_outlined, 'https://www.reddit.com'),
                   _buildQuickAccessCard('Hacker News', 'news.ycombinator.com', Icons.newspaper, 'https://news.ycombinator.com'),
+                  _buildQuickAccessCard('Flutter Docs', 'docs.flutter.dev', Icons.flutter_dash, 'https://docs.flutter.dev'),
                   _buildQuickAccessCard('ArXiv', 'arxiv.org', Icons.science_outlined, 'https://arxiv.org'),
                 ],
               ),
@@ -3715,7 +3766,7 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
                 controller: _homepageController,
                 decoration: const InputDecoration(
                   labelText: 'Homepage URL',
-                  hintText: 'https://docs.flutter.dev',
+                  hintText: 'about:blank (Browser Start Page)',
                   prefixIcon: Icon(Icons.link, size: 18),
                   isDense: true,
                   border: OutlineInputBorder(),
@@ -3728,10 +3779,10 @@ class _HotTeaWorkspaceScreenState extends State<HotTeaWorkspaceScreen> with Widg
                 children: [
                   OutlinedButton(
                     onPressed: () {
-                      _homepageController.text = 'https://docs.flutter.dev';
-                      _updateHomepage('https://docs.flutter.dev');
+                      _homepageController.text = 'about:blank';
+                      _updateHomepage('about:blank');
                     },
-                    child: const Text('Reset to Default', style: TextStyle(fontSize: 12)),
+                    child: const Text('Reset to Start Page', style: TextStyle(fontSize: 12)),
                   ),
                   const SizedBox(width: 8),
                   if (_activeTab.currentUrl != null && _activeTab.currentUrl!.scheme != 'about')

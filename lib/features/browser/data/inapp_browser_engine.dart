@@ -66,7 +66,7 @@ class InAppBrowserEngine implements BrowserEngine {
     BrowserPlatformCapabilities? customCapabilities,
     this.isPrivate = false,
     HotTeaShieldConfig? shieldConfig,
-  })  : _initialUrl = initialUrl ?? Uri.parse('https://docs.flutter.dev'),
+  })  : _initialUrl = initialUrl ?? Uri.parse('about:blank'),
         capabilities = customCapabilities ?? _resolvePlatformCapabilities(),
         _shieldConfig = shieldConfig ?? const HotTeaShieldConfig() {
     _currentUrl = _initialUrl;

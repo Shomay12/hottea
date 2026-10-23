@@ -59,6 +59,7 @@ void main() {
       await tester.pumpWidget(HotTeaApp(
         persistenceRepository: repo,
         forceMockBrowser: true,
+        initialUrl: Uri.parse('https://example.com'),
       ));
       await tester.pumpAndSettle();
 
